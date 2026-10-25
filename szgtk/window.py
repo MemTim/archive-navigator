@@ -47,7 +47,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.accels, self.list_keys, self.active, self.sidebar = {}, {}, None, None
         self._p2_shown_once = False
         self.set_default_size(conf['width'], conf['height'])
-        self.set_icon_name('package-x-generic')
+        self.set_icon_name(APP_ID)
         apply_theme(conf)
         apply_display(conf)
         clear_icon_cache()
@@ -2557,10 +2557,13 @@ class MainWindow(Gtk.ApplicationWindow):
         d = Gtk.AboutDialog(transient_for=self, modal=True)
         d.set_program_name(APP_NAME)
         d.set_version(VERSION)
-        d.set_logo_icon_name('package-x-generic')
-        d.set_comments(_('GTK4 / Wayland front-end for 7-Zip') + '\n' + (self.sz.version or _('7z not found')))
-        d.set_website('https://7-zip.org/')
-        d.set_license_type(Gtk.License.MIT_X11)
+        d.set_logo_icon_name(APP_ID)
+        d.set_comments(_('Two-panel GTK4 file manager and archiver') + '\n' + (self.sz.version or _('7z not found')))
+        d.set_website('https://github.com/MemTim/archive-navigator')
+        d.set_website_label(_('Project page on GitHub'))
+        d.set_license_type(Gtk.License.CUSTOM)
+        d.set_license('PolyForm Noncommercial License 1.0.0\n'
+                      'https://polyformproject.org/licenses/noncommercial/1.0.0')
         d.present()
 
     # ───────────── командная строка ─────────────

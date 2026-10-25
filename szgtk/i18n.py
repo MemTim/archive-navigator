@@ -111,6 +111,8 @@ RU.update({
     'Refresh': 'Обновить', 'Add folder to Favorites as': 'Добавить папку в избранное как',
     'Favorites': 'Избранное', 'Options…': 'Настройки…', 'Delete temporary files': 'Удалить временные файлы',
     'Tools': 'Сервис', 'Contents…': 'Справка…', 'About Archive Navigator…': 'О программе…', 'Help': 'Справка',
+    'Two-panel GTK4 file manager and archiver': 'Двухпанельный файловый менеджер и архиватор на GTK4',
+    'Project page on GitHub': 'Страница проекта на GitHub',
     'Add': 'Добавить', 'Extract': 'Извлечь', 'Test': 'Тест', 'Move': 'Переместить', 'Info': 'Информация',
     'Open': 'Открыть', 'Open with…': 'Открыть с помощью…', 'Run': 'Запустить',
     'Choose an application to open the file:': 'Выберите программу для открытия файла:',

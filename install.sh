@@ -11,8 +11,12 @@ desktop="$appdir/io.sevenzipgtk.App.desktop"
 if [[ "${1:-}" == "--uninstall" ]]; then
     rm -f "$bindir/sevenzip-gtk" "$desktop"
     rm -rf "$prefix"
+    icondir="${ICONDIR:-$HOME/.local/share/icons}"
+    rm -f "$icondir/hicolor/scalable/apps/io.sevenzipgtk.App.svg" \
+          "$icondir/hicolor/256x256/apps/io.sevenzipgtk.App.png"
+    command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$icondir/hicolor" 2>/dev/null || true
     command -v update-desktop-database >/dev/null && update-desktop-database "$appdir" 2>/dev/null || true
-    echo "Удалено: $prefix, $bindir/sevenzip-gtk, $desktop"
+    echo "Удалено: $prefix, $bindir/sevenzip-gtk, $desktop, значки приложения"
     exit 0
 fi
 
@@ -45,6 +49,14 @@ ln -sf "$prefix/sevenzip-gtk.py" "$bindir/sevenzip-gtk"
 
 sed "s|@EXEC@|$bindir/sevenzip-gtk|g" "$here/data/io.sevenzipgtk.App.desktop" > "$desktop"
 chmod 644 "$desktop"
+
+# значки приложения (scalable + растровый запасной вариант)
+icondir="${ICONDIR:-$HOME/.local/share/icons}"
+if [[ -d "$here/data/icons/hicolor" ]]; then
+    install -d "$icondir/hicolor"
+    cp -a "$here/data/icons/hicolor/." "$icondir/hicolor/"
+    command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$icondir/hicolor" 2>/dev/null || true
+fi
 
 command -v update-desktop-database >/dev/null && update-desktop-database "$appdir" 2>/dev/null || true
 
