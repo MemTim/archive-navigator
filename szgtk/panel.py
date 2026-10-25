@@ -166,10 +166,17 @@ class Panel(Gtk.Box):
         self.win, self.mode, self.path, self.arc = win, 'fs', path, None
         self.design = win.conf['design']
         self.history, self.hpos, self.details = [], -1, True
+        self._hist_view = []          # прокрутка и выделение для записей истории
         self.filter_text, self._last_loc, self.renderers = '', None, []
         self._renaming = False
         self.hdr = self.title_row = self.foot = None
         self.view_mode = win.conf['view_mode'] if win.conf['view_mode'] in ('list', 'tiles') else 'list'
+        self._factory_size = None
+        self._tiles_keep = set()
+        self._scroll_seq = 0
+        self._scroll_hid = self._scroll_vid = 0
+        self._scroll_sig_adj = self._scroll_target = None
+        self._scroll_until, self._scroll_busy = 0.0, False
         self.thumbs, self._thumb_pending, self._thumb_gen, self._thumb_timer = {}, set(), 0, 0
         self._ta_buf, self._ta_ok, self._ta_src = '', True, 0     # выбор набором букв
         self.add_css_class('sz-panel')
@@ -192,6 +199,8 @@ class Panel(Gtk.Box):
         fc = Gtk.EventControllerFocus()
         fc.connect('enter', lambda c: self.win.set_active(self))
         self.add_controller(fc)
+        # плитки, отложенные до показа панели, собираем при её первом map (см. fill)
+        self.connect('map', self._on_mapped)
 
     # ---------- построение ----------
     def _btn(self, icon, tip, cb):
@@ -332,10 +341,13 @@ class Panel(Gtk.Box):
         self.list_over.set_child(sw1)
         self.sw_tiles = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
         self.tiles_over = Gtk.Overlay()
-        self.tiles_over.set_child(self.grid)
-        self.sw_tiles.set_child(self.tiles_over)
+        # GridView сам реализует Scrollable: он должен быть непосредственным
+        # ребёнком ScrolledWindow, иначе GTK не виртуализирует плитки и строит
+        # виджеты для всех строк сразу (и прокрутка живёт в другом adjustment).
+        self.sw_tiles.set_child(self.grid)
+        self.tiles_over.set_child(self.sw_tiles)
         self.stack.add_named(self.list_over, 'list')
-        self.stack.add_named(self.sw_tiles, 'tiles')
+        self.stack.add_named(self.tiles_over, 'tiles')
         self.stack.set_visible_child_name(self.view_mode)
         self.stack_over = Gtk.Overlay()
         self.stack_over.set_vexpand(True)
@@ -595,7 +607,7 @@ class Panel(Gtk.Box):
         self._tiles_dirty = True
         self._sync_tiles()
 
-    def _sync_tiles(self, keep=None):
+    def _sync_tiles(self, keep=None, reveal=True):
         """Пересобрать модель плиток по отсортированной модели таблицы (с сохранением выделения)."""
         if self.view_mode != 'tiles' or not self._tiles_dirty:
             return
@@ -603,18 +615,59 @@ class Panel(Gtk.Box):
             keep = self._tile_selected_names() if self.tile_store.get_n_items() else set()
         items = [TileItem(r[C_NAME], r[C_DIR], r[C_FULL], r[C_SIZE], r[C_ICON], r[C_FLAGS], i)
                  for i, r in enumerate(self.sorted)]
+        # Снимаем выделение до изменения модели, иначе MultiSelection какое-то время
+        # держит ссылки на уже удалённые строки (артефакты после удаления файла).
+        self.tile_sel.unselect_all()
         self.tile_store.splice(0, self.tile_store.get_n_items(), items)
         self._tiles_dirty = False
+        self._tiles_keep = set()
+        first = None
         for i, it in enumerate(items):
             if it.name in keep:
                 self.tile_sel.select_item(i, False)
+                if first is None:
+                    first = i
+        if first is not None and reveal:
+            # GridView пересчитывает раскладку после splice, поэтому прокручиваем
+            # к выделенной плите в следующей итерации главного цикла.
+            name = items[first].name
+            seq = self._scroll_seq
+
+            def reveal_tile():
+                if seq == self._scroll_seq:
+                    self._scroll_tile_to(name)
+                return False
+            GLib.idle_add(reveal_tile)
         self.update_status()
 
-    def apply_view(self):
+    def _scroll_tile_to(self, name, seq=None):
+        if seq is not None and seq != self._scroll_seq:
+            return False       # за это время камеру уже поставили точно (reload/back)
+        prev = self.get_root().get_focus() if self.get_root() is not None else None
+        for i in range(self.tile_store.get_n_items()):
+            if self.tile_store.get_item(i).name == name:
+                try:
+                    # В GTK 4.24 scroll_to с флагом NONE не прокручивает к элементу,
+                    # который ещё не был отрисован, поэтому используем FOCUS и затем
+                    # возвращаем фокус туда, где он был.
+                    self.grid.scroll_to(i, Gtk.ListScrollFlags.FOCUS, None)
+                except (AttributeError, TypeError):
+                    pass
+                break
+        if prev is not None and prev is not self.grid and prev.get_mapped():
+            w = prev
+            while w is not None and w is not self.grid:
+                w = w.get_parent()
+            if w is None:      # не возвращаем фокус на старую (уже перепривязанную) плитку
+                prev.grab_focus()
+        return False
+
+    def apply_view(self, force=False):
         """Применить режим просмотра и размер значков из настроек."""
+        self._cancel_scroll_restore()
         c = self.win.conf
         mode = c['view_mode'] if c['view_mode'] in ('list', 'tiles') else 'list'
-        keep = {i.name for i in self.selected()}
+        keep = {i.name for i in self.selected()} | self._tiles_keep
         if self._renaming:
             self.cancel_inline_rename()
         self.view_mode = mode
@@ -622,9 +675,19 @@ class Panel(Gtk.Box):
         self.grid.set_single_click_activate(bool(c['single_click']))
         self._set_models()
         if mode == 'tiles':
-            self.grid.set_factory(self._make_factory())      # плитки перерисуются в новом размере
-            self._tiles_dirty = True
-            self._sync_tiles(keep)
+            if self._factory_size != c['tile_icon_size']:
+                # фабрика зависит от размера значка — пересоздаём только при его смене,
+                # иначе каждое применение вида (в т.ч. при map окна) собирает все плитки заново
+                self._factory_size = c['tile_icon_size']
+                self.grid.set_factory(self._make_factory())
+                force = True
+            if force or self._tiles_dirty:
+                if self.get_mapped():
+                    self._sync_tiles(keep, reveal=False)
+                else:
+                    # панель ещё не показана — соберём плитки при map (см. _on_mapped)
+                    self._tiles_keep = keep
+                    self._tiles_dirty = True
         elif keep:
             self._restore_selection(keep)
         self.refresh_chrome()
@@ -842,23 +905,29 @@ class Panel(Gtk.Box):
             if fnmatch.fnmatch(row[C_NAME].casefold(), mask.casefold()):
                 (self._select_path if select else self._unselect_path)(row.path)
 
-    def _restore_selection(self, keep):
+    def _restore_selection(self, keep, scroll=True):
         first = None
         for row in self.sorted:
             if row[C_NAME] in keep:
                 self._select_path(row.path)
                 if first is None:
                     first = row.path.copy()
-        if first is not None:
+        if first is not None and scroll:
             if self.view_mode == 'tiles':
-                try:
-                    self.grid.scroll_to(first.get_indices()[0], Gtk.ListScrollFlags.NONE, None)
-                except (AttributeError, TypeError):
-                    pass
+                idx = first.get_indices()[0]
+                if 0 <= idx < self.tile_store.get_n_items():
+                    self._scroll_tile_to(self.tile_store.get_item(idx).name)
             else:
                 self.tree.scroll_to_cell(first, None, False, 0.0, 0.0)
 
+    def _on_mapped(self, w):
+        """Панель показана: собрать плитки, отложенные в fill()."""
+        if self._tiles_dirty and self.view_mode == 'tiles':
+            self._sync_tiles(self._tiles_keep)
+
     def fill(self, rows, keep=None):
+        self._cancel_scroll_restore()
+        self._scroll_seq += 1      # отменяем отложенный показ плитки из прошлой папки
         loc = self._display_loc()
         if loc != self._last_loc:
             self._last_loc = loc
@@ -881,7 +950,11 @@ class Panel(Gtk.Box):
             self.store.append(list(r) + [i])
         self._set_models()
         self._tiles_dirty = True
-        self._sync_tiles(set(keep) if keep else set())
+        self._tiles_keep = set(keep) if keep else set()
+        # Плитки собираем только когда панель уже показана: до map у GridView нет
+        # реального размера, и виджеты для всех строк создаются впустую.
+        if self.get_mapped():
+            self._sync_tiles(self._tiles_keep)
         if keep and self.view_mode == 'list':
             self._restore_selection(set(keep))
         self.update_status()
@@ -976,6 +1049,8 @@ class Panel(Gtk.Box):
             self.arc = None
 
     def navigate_fs(self, path, push=True, select=None):
+        if push:
+            self._capture_view_state()
         if vfs.is_admin(path):
             return self.navigate_admin(path, push, select)
         path = os.path.abspath(os.path.expanduser(path))
@@ -1018,6 +1093,8 @@ class Panel(Gtk.Box):
         return True
 
     def navigate_admin(self, path, push=True, select=None):
+        if push:
+            self._capture_view_state()
         uri = path if vfs.is_admin(path) else vfs.admin_uri(path)
         rest = uri[len(vfs.ADMIN):]
         uri = vfs.ADMIN + ('/' if rest in ('', '/') else rest.rstrip('/'))
@@ -1043,6 +1120,8 @@ class Panel(Gtk.Box):
         return self.arc.display + ('/' + self.arc.sub if self.arc.sub else '')
 
     def open_archive(self, path, push=True, sub='', parent_state=None, tmp=None, password=None, origin=None):
+        if push and parent_state is None:
+            self._capture_view_state()
         if vfs.is_admin(path):
             def start():
                 self.set_message(_('Opening…'))
@@ -1097,11 +1176,45 @@ class Panel(Gtk.Box):
         self.entry.set_text(self._display_loc())
         self.fill(self._arc_rows(), keep)
 
+    def _visible_anchor(self):
+        """Имена первых видимых строк списка — чтобы вернуть камеру после перезагрузки."""
+        if self.view_mode != 'list' or self.tree.get_model() is None:
+            return []
+        rng = self.tree.get_visible_range()
+        if not rng:
+            return []
+        start, end = rng
+        out = []
+        it = self.sorted.get_iter(start)
+        while it is not None and len(out) < 32:
+            out.append(self.sorted.get_value(it, C_NAME))
+            if self.sorted.get_path(it).compare(end) == 0:
+                break
+            it = self.sorted.iter_next(it)
+        return out
+
+    def _restore_anchor(self, names):
+        if not names:
+            return
+        want = set(names)
+        for row in self.sorted:
+            if row[C_NAME] in want:
+                try:
+                    self.tree.scroll_to_cell(row.path, None, True, 0.0, 0.0)
+                except (AttributeError, TypeError):
+                    pass
+                return
+
     def reload(self, keep=None):
+        adj = self._scroll_adj()
+        scroll, up, pg = adj.get_value(), adj.get_upper(), adj.get_page_size()
+        anchor = self._visible_anchor()
         keep = keep if keep is not None else [i.name for i in self.selected()]
         if self.mode == 'fs':
             if vfs.is_dir(self.path):
                 self.fill(self._fs_rows(), keep)
+                self._restore_anchor(anchor)
+                self._restore_scroll(scroll, up, pg)
             else:
                 self.navigate_fs(vfs.dirname(self.path) or '/')
             return
@@ -1114,6 +1227,8 @@ class Panel(Gtk.Box):
             while a.sub and not a.has_dir(a.sub):
                 a.sub = a.sub.rpartition('/')[0]
             self.show_arc(keep)
+            self._restore_anchor(anchor)
+            self._restore_scroll(scroll, up, pg)
         if os.path.exists(a.path):
             self.win.list_async(a.path, a.password, cb)
 
@@ -1126,24 +1241,140 @@ class Panel(Gtk.Box):
         if self.hpos >= 0 and self.history[self.hpos] == entry:
             return
         del self.history[self.hpos + 1:]
+        del self._hist_view[self.hpos + 1:]
         self.history.append(entry)
+        self._hist_view.append(None)
         self.hpos = len(self.history) - 1
+
+    def _scroll_adj(self):
+        return self.grid.get_vadjustment() if self.view_mode == 'tiles' else self.sw_list.get_vadjustment()
+
+    def _hist_entry_matches(self, e):
+        """Относится ли запись истории к тому, что сейчас показано в панели."""
+        if e[0] == 'fs':
+            return self.mode == 'fs' and e[1] == self.path
+        if self.mode != 'arc' or self.arc is None:
+            return False
+        root = self.arc
+        while root.parent is not None:
+            root = root.parent
+        return e[1] == root.source and self.arc.sub == e[2]
+
+    def _capture_view_state(self):
+        """Запомнить прокрутку и выделение для текущей записи истории."""
+        if 0 <= self.hpos < len(self.history) and self._hist_entry_matches(self.history[self.hpos]):
+            adj = self._scroll_adj()
+            self._hist_view[self.hpos] = {
+                'sel': [i.name for i in self.selected()],
+                'scroll': adj.get_value(),
+                'upper': adj.get_upper(),
+                'page': adj.get_page_size(),
+            }
+
+    def _cancel_scroll_restore(self):
+        """Отменить отложенное восстановление прокрутки (модель меняется)."""
+        adj = self._scroll_sig_adj
+        if adj is not None:
+            for attr in ('_scroll_hid', '_scroll_vid'):
+                hid = getattr(self, attr, 0)
+                if hid:
+                    try:
+                        if GObject.signal_handler_is_connected(adj, hid):
+                            adj.disconnect(hid)
+                    except (TypeError, AttributeError):
+                        pass
+                    setattr(self, attr, 0)
+        self._scroll_sig_adj = self._scroll_target = None
+        self._scroll_until = 0.0
+
+    def _restore_scroll(self, value, upper=None, page=None):
+        """Вернуть прокрутку так, чтобы камера не прыгала наверх.
+
+        После замены модели GridView/TreeView ещё не знает новую высоту, и
+        прокрутка сбрасывается в 0. Поэтому сразу подставляем сохранённые upper
+        и value (первый кадр рисуется на месте), а затем на короткое время
+        следим за adjustment: раскладка может пересчитать value уже после этого.
+        """
+        # отменяем отложенную прокрутку к выделенной плите: камера ставится точно
+        self._scroll_seq += 1
+        self._cancel_scroll_restore()
+        if value <= 0:
+            return
+        adj = self._scroll_adj()
+        if upper is not None and upper > adj.get_upper():
+            # модель ещё не пересчитала высоту: вернём сохранённую, чтобы
+            # value не обрезалось до 0 на первом кадре
+            adj.set_upper(upper)
+        if page is not None and page > 0 and abs(page - adj.get_page_size()) > 0.5:
+            adj.set_page_size(page)
+        maxv = max(0.0, adj.get_upper() - adj.get_page_size())
+        if maxv >= value - 1:
+            adj.set_value(min(value, maxv))
+        self._scroll_sig_adj = adj
+        self._scroll_target = value
+        self._scroll_until = time.monotonic() + 0.6
+        seq = self._scroll_seq
+
+        def apply(a):
+            if seq != self._scroll_seq:
+                return
+            if self._scroll_target is None or time.monotonic() > self._scroll_until:
+                self._cancel_scroll_restore()
+                return
+            maxv = max(0.0, a.get_upper() - a.get_page_size())
+            if maxv < value - 1:
+                return
+            target = min(value, maxv)
+            if abs(a.get_value() - target) > 0.5 and not self._scroll_busy:
+                self._scroll_busy = True
+                try:
+                    a.set_value(target)
+                finally:
+                    self._scroll_busy = False
+
+        self._scroll_vid = adj.connect('value-changed', apply)
+        self._scroll_hid = adj.connect('changed', apply)
+
+        def expire():
+            if seq == self._scroll_seq and self._scroll_target is not None:
+                self._cancel_scroll_restore()
+            return False
+        GLib.timeout_add(600, expire)
+
+    def _restore_view_state(self, st):
+        if not st:
+            return
+        scroll = st.get('scroll', 0.0)
+        if st.get('sel'):
+            # при ненулевой сохранённой прокрутке не дёргаем вид к выделению
+            self._restore_selection(set(st['sel']), scroll=scroll <= 0)
+        self._restore_scroll(scroll, st.get('upper'), st.get('page'))
 
     def back(self):
         if self.hpos > 0:
+            self._capture_view_state()
             self.hpos -= 1
             self._goto(self.history[self.hpos])
 
     def forward(self):
         if self.hpos < len(self.history) - 1:
+            self._capture_view_state()
             self.hpos += 1
             self._goto(self.history[self.hpos])
 
     def _goto(self, e):
+        st = self._hist_view[self.hpos] if 0 <= self.hpos < len(self._hist_view) else None
         if e[0] == 'fs':
-            self.navigate_fs(e[1], push=False)
+            # При возврате в родительский каталог выделяем папку, из которой вышли
+            # (как при «Вверх»), чтобы не потерять ориентир.
+            sel = None
+            if (self.mode == 'fs' and vfs.dirname(self.path) == e[1]
+                    and not (st and st.get('sel'))):
+                sel = vfs.basename(self.path)
+            self.navigate_fs(e[1], push=False, select=sel)
         else:
             self.open_archive(e[1], push=False, sub=e[2])
+        self._restore_view_state(st)
 
     def history_paths(self):
         out = []
@@ -1153,11 +1384,23 @@ class Panel(Gtk.Box):
                 out.append(t)
         return out
 
+    def _hist_state(self, kind, path):
+        """Последнее сохранённое состояние просмотра для записи истории."""
+        for i in range(min(self.hpos, len(self._hist_view)) - 1, -1, -1):
+            if self._hist_view[i] and self.history[i][0] == kind and self.history[i][1] == path:
+                return self._hist_view[i]
+        return None
+
     def go_up(self):
         if self.mode == 'fs':
             parent = vfs.dirname(self.path)
             if parent and parent != self.path:
+                # возвращаемся туда, где камера стояла до входа в папку
+                st = self._hist_state('fs', parent)
                 self.navigate_fs(parent, select=vfs.basename(self.path))
+                if st:
+                    # выделение не восстанавливаем: остаётся папка, из которой вышли
+                    self._restore_scroll(st.get('scroll', 0.0), st.get('upper'), st.get('page'))
             return
         a = self.arc
         if a.sub:
@@ -1171,7 +1414,11 @@ class Panel(Gtk.Box):
             self.show_arc([os.path.basename(a.path)])
         else:
             src = a.source if vfs.is_admin(a.source) else a.path
-            self.navigate_fs(vfs.dirname(src), select=vfs.basename(src))
+            parent = vfs.dirname(src)
+            st = self._hist_state('fs', parent)
+            self.navigate_fs(parent, select=vfs.basename(src))
+            if st:
+                self._restore_scroll(st.get('scroll', 0.0), st.get('upper'), st.get('page'))
 
     def go_root(self):
         self.navigate_fs(vfs.ADMIN + '/' if vfs.is_admin(self.path) else '/')
@@ -1419,7 +1666,7 @@ class Panel(Gtk.Box):
         self._tile_edit = tv
         self._tile_edit_parts = parts
         self._tile_edit_state = state
-        adj = self.sw_tiles.get_vadjustment()
+        adj = self._scroll_adj()
         if adj is not None and not getattr(self, '_tile_adj_connected', False):
             adj.connect('value-changed', lambda *_: self._tile_edit_place())
             self._tile_adj_connected = True
@@ -1505,6 +1752,7 @@ class Panel(Gtk.Box):
         GLib.idle_add(fin)
 
     def _on_key(self, ctrl, keyval, keycode, state):
+        self._cancel_scroll_restore()
         if self._renaming:
             return False
         root = self.get_root()
@@ -1612,6 +1860,7 @@ class Panel(Gtk.Box):
 
     def _on_scroll(self, ctrl, dx, dy):
         """Ctrl + колесо мыши — масштаб значков."""
+        self._cancel_scroll_restore()
         if not (ctrl.get_current_event_state() & Gdk.ModifierType.CONTROL_MASK):
             return False
         self._zoom_acc = getattr(self, '_zoom_acc', 0.0) + dy

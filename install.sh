@@ -41,9 +41,11 @@ else
     rm -rf "$prefix/szgtk"
     cp -a "$here/szgtk" "$prefix/"
     cp -a "$here/sevenzip-gtk.py" "$prefix/"
-    find "$prefix" -type d -name '__pycache__' -prune -exec rm -rf {} +
     chmod +x "$prefix/sevenzip-gtk.py"
 fi
+
+# прогреваем байткод: иначе первый запуск тратит время на компиляцию всех модулей
+python3 -m compileall -q "$prefix/szgtk" "$prefix/sevenzip-gtk.py" 2>/dev/null || true
 
 ln -sf "$prefix/sevenzip-gtk.py" "$bindir/sevenzip-gtk"
 

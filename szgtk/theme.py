@@ -468,12 +468,11 @@ def apply_theme(conf):
     settings = Gtk.Settings.get_default()
     if _theme['orig_dark'] is None:
         _theme['orig_dark'] = _theme_is_dark(settings)
-    if scheme == 'midnight':
-        settings.set_property('gtk-application-prefer-dark-theme', True)
-    elif scheme == 'light':
-        settings.set_property('gtk-application-prefer-dark-theme', False)
-    else:
-        settings.set_property('gtk-application-prefer-dark-theme', _theme['orig_dark'])
+    want_dark = (_theme['orig_dark'] if scheme == 'system' else scheme == 'midnight')
+    # Смена этого свойства перестраивает стили всего приложения даже при том же
+    # значении, поэтому выставляем его только когда оно действительно меняется.
+    if bool(settings.get_property('gtk-application-prefer-dark-theme')) != bool(want_dark):
+        settings.set_property('gtk-application-prefer-dark-theme', bool(want_dark))
     # Фон плашки — фактический фон списка, обводка и значок — акцент текущей темы GTK.
     badge_bg = PAL['bg'] if scheme == 'midnight' else (
         _theme_color('theme_base_color') or _theme_color('theme_bg_color') or '#FAFAFA')

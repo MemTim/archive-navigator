@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from .imports import *  # noqa: F401,F403
 from .i18n import _, N_, set_language
-from .display import apply_display, format_size
+from .display import DISP, apply_display, format_size
 from .utils import (TAR_COMPOUND, accel_pretty, accel_variants, archive_stem,
                     esc_label, fmt_num, fmt_time, handle_text_shortcut,
                     has_text_target, human, is_archive_name, parse_accel,
@@ -46,6 +46,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.design = conf['design']
         self.accels, self.list_keys, self.active, self.sidebar = {}, {}, None, None
         self._p2_shown_once = False
+        self._mapped_once = False
+        self._disk_seq = 0
         self.set_default_size(conf['width'], conf['height'])
         self.set_icon_name(APP_ID)
         apply_theme(conf)
@@ -120,13 +122,16 @@ class MainWindow(Gtk.ApplicationWindow):
         self.apply_hotkeys()
         for p in (self.p1, self.p2):
             p.apply_options(conf)
-            p.navigate_fs(start)
+        self.p1.navigate_fs(start)
+        if two:
+            # скрытую вторую панель наполняем при первом показе (см. op_two_panels)
+            self.p2.navigate_fs(start)
         if restore:
             self.passwords.update(restore['passwords'])
             self.temp_dirs = restore['temp']
             if restore['p1'] != start:
                 self.p1.navigate_text(restore['p1'])
-            if restore['p2'] and restore['p2'] != start:
+            if two and restore['p2'] and restore['p2'] != start:
                 self.p2.navigate_text(restore['p2'])
             self.set_active(self.p2 if restore['active'] == 1 and two else self.p1)
         self.update_statusbar()
@@ -233,8 +238,15 @@ class MainWindow(Gtk.ApplicationWindow):
 
     # ───────────── значки, меню, вид, root ─────────────
     def _on_map(self, w):
+        # вид применяем один раз: повторный map (например, разворачивание окна)
+        # не должен заново собирать все плитки
+        if self._mapped_once:
+            return
+        self._mapped_once = True
         for p in (self.p1, self.p2):
-            p.apply_view()
+            if p.get_visible():
+                p.apply_view()
+        GLib.timeout_add(250, self._refresh_disk_space)
 
     def accel_text(self, name):
         for hid, action, label, default, scope in HOTKEYS:
@@ -397,7 +409,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def op_thumbs(self, action, param):
         self.conf['show_thumbs'] = self._toggle(action)
         for p in (self.p1, self.p2):
-            p.apply_view()
+            p.apply_view(force=True)      # перепривязать плитки, чтобы запросить/убрать миниатюры
             p.view.queue_draw()
 
     def op_zoom(self, delta):
@@ -669,6 +681,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.st_main.add_css_class('sz-st-main')
         self.st_sel = lbl('')
         self.st_sel.add_css_class('sz-muted')
+        self.st_disk = lbl('')
+        self.st_disk.add_css_class('sz-muted')
         sp = Gtk.Box()
         sp.set_hexpand(True)
         self.st_hint = lbl('')
@@ -681,7 +695,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.zoom_scale.set_tooltip_text(_('Icon size'))
         self._zoom_lock = False
         self.zoom_scale.connect('value-changed', self._on_zoom_slider)
-        for w in (self.st_main, self.st_sel, sp, self.st_hint, self.zoom_scale):
+        for w in (self.st_main, self.st_sel, self.st_disk, sp, self.st_hint, self.zoom_scale):
             bar.append(w)
         return bar
 
@@ -722,6 +736,53 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             self.st_sel.set_text(self.selected_text(sel) if sel else '')
 
+    def _refresh_disk_space(self):
+        """Запросить свободное место на диске активной панели.
+
+        Запрос асинхронный и запускается уже после первого кадра, поэтому
+        старт окна не задерживается даже на сетевых ФС.
+        """
+        if (not hasattr(self, 'st_disk') or self.active is None
+                or self.closing or not self.get_mapped()):
+            return False
+        loc = self.active.current_dir()
+        if not loc or vfs.is_admin(loc):
+            self.st_disk.set_text('')
+            self.st_disk.set_tooltip_text(None)
+            return False
+        self._disk_seq += 1
+        Gio.File.new_for_path(loc).query_filesystem_info_async(
+            'filesystem::free,filesystem::size', GLib.PRIORITY_LOW, None,
+            self._disk_info_done, self._disk_seq)
+        return False
+
+    def _disk_info_done(self, gfile, res, seq):
+        if seq != self._disk_seq or self.closing:
+            return
+        free = size = None
+        try:
+            info = gfile.query_filesystem_info_finish(res)
+            if info.has_attribute('filesystem::free'):
+                free = info.get_attribute_uint64('filesystem::free')
+            if info.has_attribute('filesystem::size'):
+                size = info.get_attribute_uint64('filesystem::size')
+        except GLib.Error:
+            pass
+        if free is None:
+            self.st_disk.set_text('')
+            self.st_disk.set_tooltip_text(None)
+            return
+        # Для диска всегда показываем адаптивные единицы, даже если размеры
+        # файлов в настройках выводятся в байтах.
+        cfg = dict(DISP, size_mode='adaptive')
+        text = format_size(free, cfg)
+        self.st_disk.set_text(_('Free: {0}').format(text))
+        if size:
+            self.st_disk.set_tooltip_text(
+                _('Free space: {0} of {1}').format(text, format_size(size, cfg)))
+        else:
+            self.st_disk.set_tooltip_text(_('Free space: {0}').format(text))
+
     def panel_status_changed(self, panel):
         if panel is self.active:
             self.update_statusbar()
@@ -734,6 +795,8 @@ class MainWindow(Gtk.ApplicationWindow):
     def panel_changed(self, panel):
         if self.sidebar is not None and panel is self.active:
             self.sidebar.set_active(panel.current_dir() if panel.mode == 'fs' and not vfs.is_admin(panel.path) else None)
+        if panel is self.active:
+            self._refresh_disk_space()
 
     def place_label(self, path):
         norm = os.path.normpath(path)
@@ -919,6 +982,7 @@ class MainWindow(Gtk.ApplicationWindow):
         for p in (self.p1, self.p2):
             p.refresh_chrome()
         self.update_statusbar()
+        self._refresh_disk_space()
         self.panel_changed(panel)
 
     def other_panel(self):
