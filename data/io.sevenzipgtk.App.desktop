@@ -1,0 +1,32 @@
+[Desktop Entry]
+Type=Application
+Name=Archive Navigator
+Name[ru]=Archive Navigator
+GenericName=Archive manager
+GenericName[ru]=Архиватор
+Comment=Two-panel file manager and archiver for 7z, zip, tar, rar, iso and more (GTK4, Wayland)
+Comment[ru]=Двухпанельный файловый менеджер и архиватор 7z, zip, tar, rar, iso и других форматов (GTK4, Wayland)
+Exec=@EXEC@ %F
+Icon=package-x-generic
+Terminal=false
+StartupNotify=true
+StartupWMClass=io.sevenzipgtk.App
+Categories=Utility;Archiving;Compression;FileTools;GTK;
+Keywords=archive;zip;7z;tar;extract;compress;file manager;архив;архиватор;проводник;
+MimeType=application/x-7z-compressed;application/zip;application/x-tar;application/gzip;application/x-bzip2;application/x-xz;application/x-lzma;application/vnd.rar;application/x-rar;application/x-cpio;application/x-iso9660-image;application/x-compressed-tar;application/x-bzip-compressed-tar;application/x-xz-compressed-tar;application/x-rpm;application/vnd.debian.binary-package;application/vnd.ms-cab-compressed;application/x-archive;
+Actions=Add;Extract;ExtractHere;
+
+[Desktop Action Add]
+Name=Add to archive…
+Name[ru]=Добавить в архив…
+Exec=@EXEC@ --add %F
+
+[Desktop Action Extract]
+Name=Extract…
+Name[ru]=Распаковать…
+Exec=@EXEC@ --extract %F
+
+[Desktop Action ExtractHere]
+Name=Extract here
+Name[ru]=Распаковать здесь
+Exec=@EXEC@ --extract-here %F

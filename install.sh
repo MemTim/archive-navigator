@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Archive Navigator — установка в домашний каталог пользователя.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+prefix="${PREFIX:-$HOME/.local/share/sevenzip-gtk}"
+bindir="${BINDIR:-$HOME/.local/bin}"
+appdir="${APPDIR:-$HOME/.local/share/applications}"
+desktop="$appdir/io.sevenzipgtk.App.desktop"
+
+if [[ "${1:-}" == "--uninstall" ]]; then
+    rm -f "$bindir/sevenzip-gtk" "$desktop"
+    rm -rf "$prefix"
+    command -v update-desktop-database >/dev/null && update-desktop-database "$appdir" 2>/dev/null || true
+    echo "Удалено: $prefix, $bindir/sevenzip-gtk, $desktop"
+    exit 0
+fi
+
+echo "== Проверка зависимостей =="
+python3 - <<'PY' || { echo "Нужен GTK4 + PyGObject: sudo pacman -S gtk4 python-gobject"; exit 1; }
+import gi
+gi.require_version('Gtk', '4.0')
+from gi.repository import Gtk
+print('GTK', Gtk.get_major_version(), '.', Gtk.get_minor_version(), '.', Gtk.get_micro_version(), sep='')
+PY
+if ! command -v 7z >/dev/null && ! command -v 7zz >/dev/null; then
+    echo "Внимание: не найден 7z/7zz. Установите: sudo pacman -S 7zip" >&2
+fi
+
+install -d "$bindir" "$appdir"
+
+if [[ "$(realpath -m "$prefix")" == "$(realpath -m "$here")" ]]; then
+    echo "== Каталог установки совпадает с исходниками — копирование не нужно =="
+else
+    echo "== Установка в $prefix =="
+    install -d "$prefix"
+    rm -rf "$prefix/szgtk"
+    cp -a "$here/szgtk" "$prefix/"
+    cp -a "$here/sevenzip-gtk.py" "$prefix/"
+    find "$prefix" -type d -name '__pycache__' -prune -exec rm -rf {} +
+    chmod +x "$prefix/sevenzip-gtk.py"
+fi
+
+ln -sf "$prefix/sevenzip-gtk.py" "$bindir/sevenzip-gtk"
+
+sed "s|@EXEC@|$bindir/sevenzip-gtk|g" "$here/data/io.sevenzipgtk.App.desktop" > "$desktop"
+chmod 644 "$desktop"
+
+command -v update-desktop-database >/dev/null && update-desktop-database "$appdir" 2>/dev/null || true
+
+echo
+echo "Готово. Запуск: sevenzip-gtk  (или из меню приложений)"
+echo "Удаление:    $here/install.sh --uninstall"
