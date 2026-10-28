@@ -2,10 +2,12 @@
 """Диалог свойств файла: основные сведения, права доступа и метаданные."""
 from .imports import *  # noqa: F401,F403
 from .i18n import _
-from .dialogs import DlgBase, _tab_label, alert, hbox, lbl, vbox
+from .dialogs import (DlgBase, _tab_label, alert, confirm, grid_row, hbox,
+                      lbl, vbox)
 from .utils import TAR_COMPOUND, fmt_num, fmt_time, human, is_archive_name
 from .fileicons import icon_for_file
 from .convert import kind_of
+from . import samba
 from . import vfs
 
 
@@ -527,8 +529,27 @@ class PropertiesDialog(DlgBase):
         self.meta_box = None
         self._switching_tabs = False
         self.tab_buttons = []
+        # вкладка общего доступа Samba
+        self.share_path = None
+        self.share_current = None
+        self.share_enabled = None
+        self.share_name = None
+        self.share_comment = None
+        self.share_read_only = None
+        self.share_guest = None
+        self.share_users = None
+        self.share_browseable = None
+        self.share_apply = None
+        self.share_remove = None
+        self.share_start = None
+        self.share_status = None
+        self.share_warn = None
+        self._samba_service = 'unknown'
+        self._share_helper_warning = ''
+        self._share_message = ''
+        self._sharing_busy = False
         self.add_css_class('sz-props')
-        self.set_default_size(520, 420)
+        self.set_default_size(560, 460)
         self.connect('close-request', self._on_close)
         self.connect('unrealize', self._on_close)
 
@@ -553,6 +574,8 @@ class PropertiesDialog(DlgBase):
             path = paths[0]
             self._add_tab(self._page_fs(path, archive_info), _('Main'))
             self._add_tab(self._page_permissions(path), _('Permissions'))
+            if self._can_share(path):
+                self._add_tab(self._page_sharing(path), _('Sharing'))
             kind = kind_of(path) if vfs.is_file(path) else None
             if kind:
                 self._add_tab(self._page_metadata(path, kind), _('Metadata'))
@@ -877,6 +900,382 @@ class PropertiesDialog(DlgBase):
         except (OSError, GLib.Error) as e:
             alert(self, _('Cannot change permissions'), str(e))
         self._reload_mode()
+
+    # ---------- общий доступ Samba ----------
+    @staticmethod
+    def _share_real_path(path):
+        real = vfs.display(path) if vfs.is_admin(path) else path
+        try:
+            return os.path.realpath(real)
+        except (OSError, ValueError):
+            return None
+
+    def _can_share(self, path):
+        try:
+            if not vfs.is_dir(path) or vfs.is_link(path):
+                return False
+        except (OSError, GLib.Error):
+            return False
+        real = self._share_real_path(path)
+        if not real or not os.path.isabs(real) or real == '/':
+            return False
+        if '/gvfs/' in real:
+            return False
+        for prefix in ('/proc', '/sys', '/dev'):
+            if real == prefix or real.startswith(prefix + os.sep):
+                return False
+        return True
+
+    def _page_sharing(self, path):
+        page = vbox(10, 6)
+        real = self._share_real_path(path)
+        self.share_path = real
+        try:
+            self.share_current = samba.share_for_path(real) if real else None
+        except Exception:
+            self.share_current = None
+
+        if not samba.samba_installed():
+            page.append(lbl(_('Samba is not installed.')))
+            note = lbl(_('Install Samba (smbd, testparm) with your package manager.'))
+            note.add_css_class('sz-prop-note')
+            note.set_wrap(True)
+            page.append(note)
+            return page
+        if not samba.can_apply():
+            page.append(lbl(_('Administrator privileges are required to configure Samba.')))
+            note = lbl(_('Install polkit/pkexec or run the application as root.'))
+            note.add_css_class('sz-prop-note')
+            note.set_wrap(True)
+            page.append(note)
+            return page
+
+        title = lbl(_('Shared folder'))
+        title.add_css_class('sz-prop-section')
+        page.append(title)
+
+        current = self.share_current
+        name = current['name'] if current else samba.suggest_name(real)
+        self.share_enabled = Gtk.CheckButton(label=_('Share this folder over Samba'))
+        self.share_enabled.set_active(current is not None)
+        self.share_enabled.connect('toggled', self._share_toggled)
+        page.append(self.share_enabled)
+
+        grid = Gtk.Grid(column_spacing=16, row_spacing=8)
+        grid.set_hexpand(True)
+        page.append(grid)
+
+        self.share_name = Gtk.Entry(hexpand=True, text=name)
+        grid_row(grid, 0, _('Share name:'), self.share_name)
+
+        self.share_comment = Gtk.Entry(hexpand=True,
+                                       text=(current or {}).get('comment', ''))
+        grid_row(grid, 1, _('Comment:'), self.share_comment)
+
+        options = vbox(4)
+        self.share_read_only = Gtk.CheckButton(label=_('Read only'))
+        self.share_read_only.set_active((current or {}).get('read_only', True))
+        self.share_read_only.connect('toggled', self._share_options_changed)
+        options.append(self.share_read_only)
+        self.share_guest = Gtk.CheckButton(
+            label=_('Allow guest access (no password)'))
+        self.share_guest.set_active((current or {}).get('guest_ok', False))
+        self.share_guest.connect('toggled', self._share_options_changed)
+        options.append(self.share_guest)
+        self.share_browseable = Gtk.CheckButton(
+            label=_('Show in network neighbourhood'))
+        self.share_browseable.set_active((current or {}).get('browseable', True))
+        options.append(self.share_browseable)
+        grid_row(grid, 2, _('Access:'), options)
+
+        self.share_users = Gtk.Entry(hexpand=True)
+        if current:
+            self.share_users.set_text(', '.join(current.get('users') or []))
+        self.share_users.set_placeholder_text(_('All Samba users'))
+        grid_row(grid, 3, _('Users:'), self.share_users)
+        users_note = lbl(_('Comma-separated list. Empty — all Samba users.'))
+        users_note.add_css_class('sz-prop-note')
+        users_note.set_wrap(True)
+        grid.attach(users_note, 1, 4, 1, 1)
+
+        note = lbl(_('Filesystem permissions also apply. '
+                     'Adjust them on the Permissions tab.'))
+        note.add_css_class('sz-prop-note')
+        note.set_wrap(True)
+        page.append(note)
+
+        self.share_warn = lbl('')
+        self.share_warn.add_css_class('sz-prop-note')
+        self.share_warn.set_wrap(True)
+        page.append(self.share_warn)
+
+        self.share_status = lbl('')
+        self.share_status.add_css_class('sz-prop-note')
+        self.share_status.set_wrap(True)
+        page.append(self.share_status)
+
+        buttons = hbox(8)
+        buttons.set_halign(Gtk.Align.START)
+        self.share_apply = Gtk.Button(label=_('Apply'))
+        self.share_apply.add_css_class('suggested-action')
+        self.share_apply.connect('clicked', lambda b: self._apply_sharing())
+        buttons.append(self.share_apply)
+        self.share_remove = Gtk.Button(label=_('Stop sharing'))
+        self.share_remove.add_css_class('destructive-action')
+        self.share_remove.connect('clicked', lambda b: self._remove_sharing())
+        self.share_remove.set_visible(current is not None)
+        buttons.append(self.share_remove)
+        self.share_start = Gtk.Button(label=_('Start Samba service'))
+        self.share_start.connect('clicked', lambda b: self._start_samba())
+        self.share_start.set_visible(False)
+        buttons.append(self.share_start)
+        page.append(buttons)
+        page.append(Gtk.Box(vexpand=True))
+
+        self._share_toggled(self.share_enabled)
+        self._update_share_status()
+        self._load_service_state()
+        return page
+
+    def _share_options_changed(self, _w=None):
+        if self.share_users is None or self.share_guest is None:
+            return
+        on = (self.share_enabled is not None and
+              self.share_enabled.get_active() and
+              not self._sharing_busy)
+        self.share_users.set_sensitive(on and not self.share_guest.get_active())
+        self._update_share_warning()
+
+    def _share_toggled(self, _w=None):
+        if self.share_enabled is None:
+            return
+        on = self.share_enabled.get_active() and not self._sharing_busy
+        for widget in (self.share_name, self.share_comment,
+                       self.share_read_only, self.share_guest,
+                       self.share_browseable):
+            if widget is not None:
+                widget.set_sensitive(on)
+        self._share_options_changed()
+        if self.share_apply is not None:
+            self.share_apply.set_sensitive(on)
+        if self.share_remove is not None:
+            self.share_remove.set_visible(self.share_current is not None)
+        self._update_share_warning()
+
+    def _update_share_warning(self):
+        if self.share_warn is None:
+            return
+        parts = []
+        if (self.share_enabled is not None and
+                self.share_enabled.get_active() and
+                self.share_guest is not None and
+                self.share_guest.get_active()):
+            read_only = self.share_read_only.get_active()
+            try:
+                mode = os.stat(self.share_path).st_mode
+            except (OSError, TypeError):
+                mode = 0
+            if not (mode & 0o005):
+                parts.append(_('Guests may not be able to read this folder: '
+                               'other users have no read/execute permission.'))
+            if not read_only and not (mode & 0o002):
+                parts.append(_('Guests may not be able to write to this folder: '
+                               'other users have no write permission.'))
+        if self._share_helper_warning:
+            parts.append(self._share_helper_warning)
+        self.share_warn.set_text('\n'.join(parts))
+        self.share_warn.set_visible(bool(parts))
+
+    def _update_share_status(self):
+        if self.share_status is None or self._sharing_busy:
+            return
+        parts = []
+        if self.share_current:
+            parts.append(_('Shared as {0}').format(
+                samba.unc_path(self.share_current['name'])))
+        else:
+            parts.append(_('Not shared'))
+        state = self._samba_service
+        if state == 'active':
+            parts.append(_('Samba service is running'))
+        elif state == 'inactive':
+            parts.append(_('Samba service is not running; '
+                           'it will be started when you apply.'))
+        elif state == 'started':
+            parts.append(_('Samba service started'))
+        elif state == 'reloaded':
+            parts.append(_('Samba service reloaded'))
+        try:
+            if not samba.include_present():
+                parts.append(_('Samba will be configured automatically on first apply.'))
+        except Exception:
+            pass
+        if self._share_message:
+            parts.append(self._share_message)
+        self.share_status.set_text(' · '.join(parts))
+        if self.share_start is not None:
+            self.share_start.set_visible(state == 'inactive')
+
+    def _load_service_state(self):
+        def work():
+            state = samba.service_status()
+            GLib.idle_add(lambda: self._set_service_state(state))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _set_service_state(self, state):
+        if not self._alive:
+            return False
+        self._samba_service = state
+        self._update_share_status()
+        return False
+
+    def _share_busy(self, busy):
+        self._sharing_busy = busy
+        if busy:
+            for widget in (self.share_enabled, self.share_name, self.share_comment,
+                           self.share_read_only, self.share_guest, self.share_users,
+                           self.share_browseable, self.share_apply, self.share_remove,
+                           self.share_start):
+                if widget is not None:
+                    widget.set_sensitive(False)
+            self.share_status.set_text(_('Applying sharing settings…'))
+        else:
+            for widget in (self.share_enabled, self.share_remove, self.share_start):
+                if widget is not None:
+                    widget.set_sensitive(True)
+            self._share_toggled(self.share_enabled)
+            self._update_share_status()
+            self._update_share_warning()
+
+    def _apply_sharing(self):
+        if self._sharing_busy or self.share_enabled is None:
+            return
+        if not self.share_enabled.get_active():
+            return
+        data = {
+            'path': self.share_path,
+            'name': self.share_name.get_text().strip(),
+            'comment': self.share_comment.get_text().strip(),
+            'read_only': self.share_read_only.get_active(),
+            'guest_ok': self.share_guest.get_active(),
+            'users': self.share_users.get_text(),
+            'browseable': self.share_browseable.get_active(),
+        }
+        try:
+            data = samba.normalize_share(data)
+        except samba.ShareError as e:
+            alert(self, _('Cannot configure sharing'), _(str(e)))
+            return
+        self._share_helper_warning = ''
+        self._share_message = ''
+        self._share_busy(True)
+
+        def work():
+            result = samba.apply_share(data)
+            GLib.idle_add(lambda: self._share_done(result))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _share_done(self, result):
+        if not self._alive:
+            return False
+        self._share_busy(False)
+        if not result:
+            result = {'ok': False, 'error': _('Unknown error')}
+        if not result.get('ok'):
+            if result.get('cancelled'):
+                self._share_message = _('Sharing settings were not changed.')
+                self._update_share_status()
+                return False
+            error = result.get('error') or _('Unknown error')
+            detail = result.get('detail') or ''
+            text = _(str(error))
+            if detail:
+                text += '\n\n' + detail[:2000]
+            alert(self, _('Cannot configure sharing'), text)
+            return False
+        action = result.get('action')
+        self._samba_service = result.get('service', self._samba_service)
+        self._share_helper_warning = result.get('warning', '')
+        if action == 'remove':
+            self.share_current = None
+            self.share_enabled.set_active(False)
+            self._share_message = _('Sharing disabled')
+        else:
+            try:
+                self.share_current = samba.share_for_path(self.share_path)
+            except Exception:
+                self.share_current = None
+            if self.share_current is None:
+                self.share_current = {
+                    'name': result.get('name', ''),
+                    'path': self.share_path,
+                    'comment': '',
+                    'browseable': True,
+                    'read_only': True,
+                    'guest_ok': False,
+                    'users': [],
+                }
+            self.share_enabled.set_active(True)
+            if result.get('name'):
+                self.share_name.set_text(result['name'])
+            self._share_message = _('Sharing settings applied')
+        self._share_toggled(self.share_enabled)
+        self._update_share_status()
+        self._update_share_warning()
+        return False
+
+    def _remove_sharing(self):
+        if self._sharing_busy or not self.share_current:
+            return
+        name = self.share_current.get('name')
+
+        def do_remove():
+            self._share_helper_warning = ''
+            self._share_message = ''
+            self._share_busy(True)
+
+            def work():
+                result = samba.remove_share(name=name, path=self.share_path)
+                GLib.idle_add(lambda: self._share_done(result))
+
+            threading.Thread(target=work, daemon=True).start()
+
+        confirm(self, _('Stop sharing this folder?'),
+                _('The Samba share will be removed. '
+                  'The folder itself will not be changed.'),
+                _('Stop sharing'), do_remove)
+
+    def _start_samba(self):
+        if self._sharing_busy:
+            return
+        self._share_busy(True)
+        self.share_status.set_text(_('Starting Samba service…'))
+
+        def work():
+            result = samba.start_service()
+            GLib.idle_add(lambda: self._start_done(result))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _start_done(self, result):
+        if not self._alive:
+            return False
+        self._share_busy(False)
+        if result and result.get('ok'):
+            self._samba_service = result.get('service', 'started')
+            self._share_message = _('Samba service started')
+            self._update_share_status()
+            return False
+        error = (result or {}).get('error') or _('Unknown error')
+        detail = (result or {}).get('detail') or ''
+        text = _(str(error))
+        if detail:
+            text += '\n\n' + detail[:2000]
+        alert(self, _('Cannot start Samba service'), text)
+        self._update_share_status()
+        return False
 
     # ---------- метаданные ----------
     def _page_metadata(self, path, kind):

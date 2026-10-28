@@ -25,6 +25,14 @@ class Config(dict):
         'typeahead': True, 'typeahead_timeout': 1000,
         # контекстное меню: порядок, скрытые пункты и ситуации показа
         'menu_layout': [], 'menu_hidden': [], 'menu_contexts': {},
+        # боковая панель: порядок, скрытые группы/пункты и ширина
+        'sidebar_groups': ['places', 'favorites', 'devices'], 'sidebar_hidden': [],
+        'sidebar_places': ['home', 'desktop', 'downloads', 'documents',
+                           'pictures', 'music', 'videos'],
+        'sidebar_hidden_places': [],
+        'sidebar_width': 220,
+        # последнее сетевое подключение (протокол и адрес для диалога)
+        'network_last': {},
     }
     DEFAULTS.update(DISP_DEFAULTS)
 

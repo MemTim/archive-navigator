@@ -40,8 +40,20 @@ BASE_CSS = """
 .sz-muted { opacity: 0.6; }
 .sz-st-main { font-weight: 600; }
 .sz-statusbar { padding: 5px 12px; font-size: 90%; }
+.sz-st-progress { min-width: 140px; min-height: 6px; margin: 0 4px; }
 .sz-section { font-size: 78%; font-weight: 700; opacity: 0.55; margin: 12px 8px 4px 8px; }
 .sz-side-item { padding: 7px 10px; border-radius: 6px; min-height: 0; }
+.sz-side-device-row { padding: 0; border-radius: 6px; }
+.sz-side-eject { padding: 4px; min-width: 26px; min-height: 26px; border-radius: 6px; }
+.sz-side-unmounted { opacity: 0.72; }
+.sz-side-paned > separator { background: transparent; min-width: 5px; min-height: 1px; }
+.sz-side-paned > separator:hover { background: alpha(currentColor, 0.16); }
+.sz-side-group-label { font-size: 78%; font-weight: 700; opacity: 0.55; }
+.sz-side-edit { padding: 4px; min-width: 28px; min-height: 28px; border-radius: 6px;
+  background: transparent; border: none; box-shadow: none; }
+.sz-side-edit:hover { background: alpha(currentColor, 0.10); }
+.sz-side-edit.sz-side-edit-on { background: alpha(currentColor, 0.16); }
+.sz-menu-hidden .sz-side-group-label { opacity: 0.35; }
 .sz-usercard { padding: 10px 12px; border-radius: 8px; margin: 8px; }
 .sz-hdr { padding: 6px 10px; }
 .sz-hdr-role { font-weight: 700; }
@@ -103,6 +115,12 @@ BASE_CSS = """
 .sz-menu-handle { padding: 3px; min-width: 28px; min-height: 28px; border-radius: 6px; }
 .sz-menu-eye { padding: 3px; min-width: 26px; min-height: 26px; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
+/* Компактные строки боковой панели в режиме редактирования: ручка и «глаз»
+   не должны делать плитку выше обычного пункта. */
+.sz-side-edit-row { padding: 5px 10px; margin: 0; min-height: 0; }
+.sz-side-handle { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px; }
+.sz-side-eye { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px;
+  background: transparent; border: none; box-shadow: none; }
 .sz-menu-more { padding: 3px; min-width: 26px; min-height: 26px; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
 .sz-menu-row.sz-menu-selected { background-color: alpha(currentColor, 0.10); }
@@ -156,7 +174,6 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight entry { background: $surface; color: $text; border: 1px solid $border;
   border-radius: 6px; box-shadow: none; caret-color: $text; }
 .sz-midnight entry:focus-within { border-color: $focus; }
-.sz-midnight .sz-active entry { border-color: $focus; }
 .sz-midnight entry selection, .sz-midnight text selection { background: $accent; color: #ffffff; }
 .sz-midnight treeview.view { background-color: $bg; color: $text; }
 .sz-midnight treeview.view:selected { background-color: $surface; color: $text; }
@@ -232,6 +249,8 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight dropdown > button { background: $surface; border: 1px solid $border; }
 .sz-midnight popover.menu listview { background: transparent; }
 .sz-midnight .sz-statusbar { background: $surface; border-top: 1px solid $border; }
+.sz-midnight .sz-st-progress trough { min-height: 6px; border-radius: 3px; background: $border; }
+.sz-midnight .sz-st-progress progress { min-height: 6px; border-radius: 3px; background: $focus; }
 .sz-midnight .sz-toolbar { background: $bg; border-bottom: 1px solid $border; }
 .sz-midnight .sz-panels-btn { background: $surface; border: 1px solid $border; }
 .sz-midnight .sz-panels-btn:hover { background: $border; }
@@ -248,7 +267,10 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-info-box { background: $surface; border-color: $border; }
 .sz-midnight .sz-sidebar { background: $bg; border-right: 1px solid $border; }
 .sz-midnight .sz-usercard { background: $surface; }
+.sz-midnight .sz-side-eject:hover { background: $border; }
 .sz-midnight .sz-side-active { background: $surface; box-shadow: inset 3px 0 $focus; }
+.sz-midnight .sz-side-device-row.sz-side-active { background: $surface; box-shadow: none; }
+.sz-midnight .sz-side-device-row.sz-side-active .sz-side-bar { box-shadow: inset 3px 0 $focus; }
 .sz-midnight .sz-hdr { background: $bg; border-bottom: 1px solid $border; }
 .sz-midnight .sz-foot { background: $bg; border-top: 1px solid $border; }
 .sz-midnight paned > separator { background: $border; min-width: 1px; min-height: 1px; }

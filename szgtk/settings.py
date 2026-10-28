@@ -34,6 +34,7 @@ HOTKEYS = [
     ('select-all', 'select-all', N_('Select all'), '<Ctrl>a', 'list'),
     ('new-folder', 'new-folder', N_('Create folder'), 'F7', 'global'),
     ('new-file', 'new-file', N_('Create file'), '<Ctrl>n', 'global'),
+    ('new-window', 'new-window', N_('New window'), '<Ctrl><Shift>n', 'global'),
     ('delete', 'delete', N_('Delete'), 'Delete', 'list'),
     ('delete-permanent', 'delete-permanent', N_('Delete permanently'), '<Shift>Delete', 'list'),
     ('properties', 'properties', N_('Properties'), '<Alt>Return', 'global'),
@@ -217,27 +218,39 @@ def _fav_arrow(area, cr, w, h):
 
 
 def _fav_sort_icon(area, cr, w, h):
+    """Ручка перетаскивания: две стрелки и четыре линии (20×21)."""
     c = area.get_color()
+    cr.save()
+    s = min(w / 20.0, h / 21.0)
+    cr.translate((w - 20.0 * s) / 2.0, (h - 21.0 * s) / 2.0)
+    cr.scale(s, s)
     cr.set_source_rgba(c.red, c.green, c.blue, c.alpha)
-    cr.set_line_width(1.6)
+    for flip in (False, True):
+        cr.save()
+        if flip:
+            cr.translate(0, 20.917)
+            cr.scale(1, -1)
+        cr.move_to(3.289, 0.529)
+        cr.line_to(0.531, 3.288)
+        cr.line_to(2.360, 3.459)
+        cr.line_to(2.360, 6.459)
+        cr.line_to(4.360, 6.459)
+        cr.line_to(4.360, 3.459)
+        cr.line_to(6.118, 3.459)
+        cr.close_path()
+        cr.set_line_width(1)
+        cr.set_line_join(1)
+        cr.fill_preserve()
+        cr.stroke()
+        cr.restore()
+    cr.set_line_width(2)
     cr.set_line_cap(1)
-    x = 5
-    cr.move_to(x, 9)
-    cr.line_to(x, 4)
-    cr.move_to(x - 3, 7)
-    cr.line_to(x, 4)
-    cr.line_to(x + 3, 7)
-    cr.move_to(x, h - 9)
-    cr.line_to(x, h - 4)
-    cr.move_to(x - 3, h - 7)
-    cr.line_to(x, h - 4)
-    cr.line_to(x + 3, h - 7)
-    cr.stroke()
     for k in range(4):
-        y = 4 + k * 4
-        cr.move_to(11, y)
-        cr.line_to(21, y)
+        y = 4.46 + 4 * k
+        cr.move_to(8.36, y)
+        cr.line_to(18.36, y)
     cr.stroke()
+    cr.restore()
 
 
 def _fav_x(area, cr, w, h):

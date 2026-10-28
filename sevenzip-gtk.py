@@ -27,7 +27,10 @@ for _base in (_here,
 
 os.environ.setdefault('SZ_APP_ENTRY', os.path.abspath(__file__))
 
-from szgtk.app import main
-
 if __name__ == '__main__':
+    # Консольный помощник для настройки Samba через pkexec (без GTK).
+    if len(sys.argv) >= 3 and sys.argv[1] == '--samba-apply':
+        from szgtk.samba import apply_request_file
+        sys.exit(apply_request_file(sys.argv[2]))
+    from szgtk.app import main
     main()

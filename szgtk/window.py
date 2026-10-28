@@ -45,6 +45,12 @@ class MainWindow(Gtk.ApplicationWindow):
             conf['design'] = 'classic'
         self.design = conf['design']
         self.accels, self.list_keys, self.active, self.sidebar = {}, {}, None, None
+        self.side_paned, self._side_save_id = None, 0
+        self._side_clamped = False
+        self._toolbar_sync_id = 0
+        self._status_override = ''
+        self._status_timer = 0
+        self._progress_timer = 0
         self._p2_shown_once = False
         self._mapped_once = False
         self._disk_seq = 0
@@ -98,20 +104,33 @@ class MainWindow(Gtk.ApplicationWindow):
         self.statusbar = self._build_statusbar()
         if self.design == 'nav':
             self.sidebar = Sidebar(self)
-            mid = hbox(0)
-            mid.set_vexpand(True)
             right = vbox(0)
             right.set_hexpand(True)
             for w in (self.toolbar, self.searchbar, self.paned):
                 right.append(w)
-            mid.append(self.sidebar)
-            mid.append(right)
-            root.append(mid)
+            self.side_paned = Gtk.Paned(orientation=H, vexpand=True)
+            self.side_paned.add_css_class('sz-side-paned')
+            self.side_paned.set_start_child(self.sidebar)
+            self.side_paned.set_end_child(right)
+            self.side_paned.set_resize_start_child(False)
+            self.side_paned.set_resize_end_child(True)
+            self.side_paned.set_shrink_start_child(False)
+            self.side_paned.set_shrink_end_child(False)
+            try:
+                width = int(self.conf.get('sidebar_width') or 220)
+            except (TypeError, ValueError):
+                width = 220
+            self.side_paned.set_position(max(160, width))
+            self.side_paned.connect('notify::position', self._on_side_paned_position)
+            self.side_paned.connect('notify::max-position', self._on_side_max_position)
+            root.append(self.side_paned)
         else:
             for w in (self.toolbar, self.searchbar, self.paned):
                 root.append(w)
         root.append(self.statusbar)
+        self._sync_toolbar_labels()
         self.apply_top_panels()
+        self._toolbar_sync_id = GLib.timeout_add(250, self._sync_toolbar_labels)
 
         two = True if self.design == 'dual' else bool(conf['two_panels'])
         self.p2.set_visible(two)
@@ -177,7 +196,8 @@ class MainWindow(Gtk.ApplicationWindow):
         A('hash', self.op_hash, param='s')
         A('new-folder', self.op_new_folder)
         A('new-file', self.op_new_file)
-        A('quit', lambda *a: self.close())
+        A('new-window', self.op_new_window)
+        A('quit', self.op_quit)
         A('select-all', lambda *a: self.active.select_all())
         A('deselect-all', lambda *a: self.active.unselect_all())
         A('invert-sel', lambda *a: self.active.invert_selection())
@@ -541,6 +561,7 @@ class MainWindow(Gtk.ApplicationWindow):
         s4.append_submenu(_('Checksum'), hashm)
         f.append_section(None, s4)
         f.append_section(None, sec((_('Create folder'), 'win.new-folder'), (_('Create file'), 'win.new-file')))
+        f.append_section(None, sec((_('New window'), 'win.new-window')))
         if not IS_ROOT:
             f.append_section(None, sec((_('Open as root'), 'win.open-as-root')))
         f.append_section(None, sec((_('Exit'), 'win.quit')))
@@ -610,6 +631,9 @@ class MainWindow(Gtk.ApplicationWindow):
     def _build_toolbar(self):
         horiz = self.design != 'classic'
         bar = hbox(2)
+        self._toolbar_labels = []
+        self._toolbar_full_width = 0
+        self._toolbar_compact = False
         bar.add_css_class('sz-toolbar')
         if horiz:
             bar.add_css_class('sz-toolbar-h')
@@ -634,8 +658,14 @@ class MainWindow(Gtk.ApplicationWindow):
             img = Gtk.Image.new_from_icon_name(icon)
             img.set_pixel_size(16 if horiz else 22)
             box.append(img)
-            box.append(lbl(_(text), 0.5))
+            lab = lbl(_(text), 0.5)
+            # подписи прячутся, когда панель действий не помещается: иначе она
+            # увеличивает минимальную ширину окна и «съедает» боковую панель
+            lab.set_ellipsize(Pango.EllipsizeMode.END)
+            box.append(lab)
+            self._toolbar_labels.append(lab)
             b.set_child(box)
+            b.set_tooltip_text(_(text))
             b.connect('clicked', lambda x, c=cb: c())
             bar.append(b)
         sp = Gtk.Box()
@@ -647,7 +677,44 @@ class MainWindow(Gtk.ApplicationWindow):
         self.btn_search.set_tooltip_text(_('Search'))
         self.btn_search.set_focus_on_click(False)
         bar.append(self.btn_search)
+        # запоминаем ширину «как есть», пока подписи ещё видны
+        self._toolbar_full_width = bar.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
         return bar
+
+    def _toolbar_available_width(self):
+        """Сколько места реально есть у панели действий."""
+        if self.side_paned is not None:
+            end = self.side_paned.get_end_child()
+            end_w = end.get_width() if end is not None else 0
+            if end_w > 1:
+                return end_w
+        width = self.get_width()
+        if width > 1:
+            return width
+        try:
+            width = int(self.conf.get('width') or 1100)
+        except (TypeError, ValueError):
+            width = 1100
+        try:
+            width -= int(self.conf.get('sidebar_width') or 220)
+        except (TypeError, ValueError):
+            width -= 220
+        return width
+
+    def _sync_toolbar_labels(self):
+        """Спрятать подписи кнопок, если панель действий не помещается по ширине."""
+        labels = getattr(self, '_toolbar_labels', None)
+        bar = getattr(self, 'toolbar', None)
+        if not labels or bar is None:
+            return True
+        if not self._toolbar_full_width:
+            self._toolbar_full_width = bar.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+        compact = self._toolbar_available_width() < self._toolbar_full_width
+        if compact != self._toolbar_compact:
+            self._toolbar_compact = compact
+            for lab in labels:
+                lab.set_visible(not compact)
+        return True
 
     def _build_searchbar(self):
         sb = Gtk.SearchBar()
@@ -683,6 +750,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self.st_sel.add_css_class('sz-muted')
         self.st_disk = lbl('')
         self.st_disk.add_css_class('sz-muted')
+        self.st_progress = Gtk.ProgressBar()
+        self.st_progress.add_css_class('sz-st-progress')
+        self.st_progress.set_show_text(False)
+        self.st_progress.set_valign(Gtk.Align.CENTER)
+        self.st_progress.set_visible(False)
         sp = Gtk.Box()
         sp.set_hexpand(True)
         self.st_hint = lbl('')
@@ -695,7 +767,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.zoom_scale.set_tooltip_text(_('Icon size'))
         self._zoom_lock = False
         self.zoom_scale.connect('value-changed', self._on_zoom_slider)
-        for w in (self.st_main, self.st_sel, self.st_disk, sp, self.st_hint, self.zoom_scale):
+        for w in (self.st_main, self.st_sel, self.st_disk, self.st_progress,
+                  sp, self.st_hint, self.zoom_scale):
             bar.append(w)
         return bar
 
@@ -728,6 +801,10 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def update_statusbar(self):
         if not hasattr(self, 'st_main') or self.active is None:
+            return
+        if self._status_override:
+            self.st_main.set_text(self._status_override)
+            self.st_sel.set_text('')
             return
         total, sel = self.active.counts()
         self.st_main.set_text(_('Objects: {0}').format(total))
@@ -788,9 +865,69 @@ class MainWindow(Gtk.ApplicationWindow):
             self.update_statusbar()
 
     def set_status_message(self, panel, text):
+        if self._status_override:
+            return
         if panel is self.active and hasattr(self, 'st_main'):
             self.st_main.set_text(text)
             self.st_sel.set_text('')
+
+    def begin_status_progress(self, text):
+        """Показать в статусбаре процесс извлечения с индикатором."""
+        self._set_status_override(text)
+        self._stop_status_timer()
+        if not hasattr(self, 'st_progress'):
+            return
+        self.st_progress.set_visible(True)
+        self.st_progress.pulse()
+        if not self._progress_timer:
+            self._progress_timer = GLib.timeout_add(100, self._pulse_status_progress)
+
+    def _pulse_status_progress(self):
+        if not hasattr(self, 'st_progress') or not self.st_progress.get_visible():
+            self._progress_timer = 0
+            return False
+        self.st_progress.pulse()
+        return True
+
+    def _stop_status_progress(self):
+        if self._progress_timer:
+            GLib.source_remove(self._progress_timer)
+            self._progress_timer = 0
+        if hasattr(self, 'st_progress'):
+            self.st_progress.set_visible(False)
+
+    def end_status_progress(self, note=None, seconds=4.0):
+        self._stop_status_progress()
+        if note:
+            self.show_status_note(note, seconds)
+        else:
+            self._set_status_override('')
+            self.update_statusbar()
+
+    def show_status_note(self, text, seconds=4.0):
+        """Показать сообщение в статусбаре вместо счётчика объектов."""
+        self._set_status_override(text)
+        self._stop_status_timer()
+        if seconds > 0:
+            self._status_timer = GLib.timeout_add(
+                int(seconds * 1000), self._clear_status_note)
+
+    def _set_status_override(self, text):
+        self._status_override = text or ''
+        if hasattr(self, 'st_main'):
+            self.st_main.set_text(self._status_override)
+            self.st_sel.set_text('')
+
+    def _stop_status_timer(self):
+        if self._status_timer:
+            GLib.source_remove(self._status_timer)
+            self._status_timer = 0
+
+    def _clear_status_note(self):
+        self._status_timer = 0
+        self._status_override = ''
+        self.update_statusbar()
+        return False
 
     def panel_changed(self, panel):
         if self.sidebar is not None and panel is self.active:
@@ -800,6 +937,10 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def place_label(self, path):
         norm = os.path.normpath(path)
+        if self.sidebar is not None:
+            device = self.sidebar.device_label(norm)
+            if device:
+                return device
         for icon, label, p in special_places():
             if p == norm:
                 return label
@@ -936,11 +1077,18 @@ class MainWindow(Gtk.ApplicationWindow):
             rn.set_action_and_target_value('win.fav-rename', GLib.Variant.new_int32(n))
             self.fav_rename.append_item(rn)
 
+    def _each_window(self):
+        """Все окна приложения (или только это, если приложение тестовое)."""
+        app = self.get_application()
+        wins = list(getattr(app, 'wins', None) or []) if app is not None else []
+        return wins or [self]
+
     def _fav_changed(self):
         self.conf.save()
-        self._rebuild_fav()
-        if self.sidebar is not None:
-            self.sidebar.rebuild()
+        for win in self._each_window():
+            win._rebuild_fav()
+            if win.sidebar is not None:
+                win.sidebar.rebuild()
 
     def op_fav_add(self, *a):
         loc, favs = self.active.location_text(), self.conf['favorites']
@@ -1749,6 +1897,20 @@ class MainWindow(Gtk.ApplicationWindow):
     def op_new_file(self, *a):
         self._new_item(folder=False)
 
+    def op_new_window(self, *a):
+        app = self.get_application()
+        if app is not None:
+            app.new_window()
+
+    def op_quit(self, *a):
+        app = self.get_application()
+        wins = list(getattr(app, 'wins', [])) if app is not None else []
+        if not wins:
+            self.close()
+            return
+        for win in wins:
+            win.close()
+
     def _new_item(self, folder):
         p = self.active
         title = _('Create folder') if folder else _('Create file')
@@ -2521,6 +2683,8 @@ class MainWindow(Gtk.ApplicationWindow):
             self.menubar.set_visible(not hm)
         if hasattr(self, 'toolbar'):
             self.toolbar.set_visible(not ht)
+            # подписи прячем до пересчёта минимума, иначе панель «растянет» окно
+            self._sync_toolbar_labels()
         for name, hidden in (('menu-bar', hm), ('toolbar', ht)):
             act = self.lookup_action(name)
             if act is not None:
@@ -2575,6 +2739,11 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         apply_theme(self.conf)
         apply_display(self.conf)
+        for win in self._each_window():
+            win.apply_live_settings()
+
+    def apply_live_settings(self):
+        """Применить настройки без пересоздания окна (для всех окон приложения)."""
         self.apply_hotkeys()
         self.apply_top_panels()
         self.lookup_action('hidden').set_state(GLib.Variant.new_boolean(bool(self.conf['show_hidden'])))
@@ -2592,6 +2761,65 @@ class MainWindow(Gtk.ApplicationWindow):
         o = self.other_panel()
         if o is not None:
             o.focus_view()
+
+    def _side_width_to_save(self):
+        """Ширина боковой панели, выбранная пользователем (0 — не сохранять)."""
+        paned = self.side_paned
+        if paned is None:
+            return 0
+        width = paned.get_position()
+        if width <= 0:
+            return 0
+        try:
+            desired = int(self.conf.get('sidebar_width') or 0)
+        except (TypeError, ValueError):
+            desired = 0
+        max_pos = paned.get_property('max-position')
+        if 0 < desired < width and width >= max_pos:
+            # Разделитель упёрся в правый край: это ограничение, а не выбор ширины.
+            return 0
+        end = paned.get_end_child()
+        if end is not None:
+            need = end.measure(Gtk.Orientation.HORIZONTAL, -1)[0]
+            # Разделитель упёрся в минимум рабочей области: это не выбор пользователя,
+            # иначе широкая панель «сжималась» бы в памяти при маленьком окне.
+            if paned.get_width() - width <= need + 1:
+                return 0
+        return int(width)
+
+    def _on_side_max_position(self, paned, _pspec):
+        # Когда окно/рабочая область стали шире, возвращаем выбранную ширину панели.
+        try:
+            desired = int(self.conf.get('sidebar_width') or 220)
+        except (TypeError, ValueError):
+            desired = 220
+        max_pos = paned.get_property('max-position')
+        if paned.get_position() < desired <= max_pos:
+            paned.set_position(desired)
+
+    def _on_side_paned_position(self, paned, _pspec):
+        width = paned.get_position()
+        try:
+            desired = int(self.conf.get('sidebar_width') or 0)
+        except (TypeError, ValueError):
+            desired = 0
+        # Разделитель упёрся в правый край — запоминаем, что ширина ограничена,
+        # и не сохраняем её вместо выбранной пользователем.
+        if width > 0 and desired and desired < width and width >= paned.get_property('max-position'):
+            self._side_clamped = True
+            return
+        self._side_clamped = False
+        width = self._side_width_to_save()
+        if width > 0:
+            self.conf['sidebar_width'] = width
+            if self._side_save_id:
+                GLib.source_remove(self._side_save_id)
+            self._side_save_id = GLib.timeout_add(400, self._save_sidebar_width)
+
+    def _save_sidebar_width(self):
+        self._side_save_id = 0
+        self.conf.save()
+        return False
 
     def op_toggle_sidebar(self, *a):
         if self.sidebar is not None:
@@ -2660,6 +2888,8 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_close(self, w):
         self.closing = True
+        if self.sidebar is not None:
+            self.sidebar.disconnect_monitor()
         self._on_destroy_clipboard()
         try:
             w_, h_ = self.get_width(), self.get_height()
@@ -2667,6 +2897,18 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.conf['width'], self.conf['height'] = w_, h_
         except Exception:
             pass
+        if self._side_save_id:
+            GLib.source_remove(self._side_save_id)
+            self._side_save_id = 0
+        if self._toolbar_sync_id:
+            GLib.source_remove(self._toolbar_sync_id)
+            self._toolbar_sync_id = 0
+        self._stop_status_timer()
+        self._stop_status_progress()
+        if self.side_paned is not None and not self._side_clamped:
+            width = self._side_width_to_save()
+            if width > 0:
+                self.conf['sidebar_width'] = width
         if self.design != 'dual':
             self.conf['two_panels'] = self.p2.get_visible()
         self.conf.save()
