@@ -1170,8 +1170,12 @@ class MainWindow(Gtk.ApplicationWindow):
         PasswordDialog(self, os.path.basename(path), cb).present()
 
     # ───────────── фоновые задачи ─────────────
-    def run_job(self, title, worker, on_done, parent=None):
+    def run_job(self, title, worker, on_done, parent=None, subtitle=None, pausable=False,
+                icon=''):
         job = Job()
+        job.subtitle = subtitle or (title + '…')
+        job.pausable = pausable
+        job.icon = icon
         dlg = ProgressDialog(parent or self, title, job)
         res = {}
         app = self.get_application()
@@ -1230,7 +1234,9 @@ class MainWindow(Gtk.ApplicationWindow):
             if res.ok and archive and pw:
                 self.passwords[archive] = pw
             on_done(res)
-        self.run_job(title, work, done)
+        icon = ('package-x-generic-symbolic' if command in ('a', 'u', 'x')
+                else 'text-x-generic-symbolic')
+        self.run_job(title, work, done, pausable=True, icon=icon)
 
     def report(self, res, title=None):
         if res is None or res.cancelled:
@@ -2386,20 +2392,32 @@ class MainWindow(Gtk.ApplicationWindow):
 
             def work(job):
                 errs = []
+                job.files_label = (_('Files moved: {0} of {1}') if move
+                                   else _('Files copied: {0} of {1}'))
                 job.text = _('Calculating size…')
                 job.fraction = None
-                total = 0
+                total = files_total = 0
                 if not move:
                     for src in paths:
                         if job.cancelled:
                             return errs
-                        total += vfs.size_of(src)
-                done = 0
+                        job.wait_if_paused()
+                        b, f = vfs.measure(src)
+                        total += b
+                        files_total += f
+                    job.bytes_total = total
+                    job.files_total = files_total
+                done = files_done = 0
                 for i, src in enumerate(paths):
+                    if job.cancelled:
+                        break
+                    job.wait_if_paused()
                     if job.cancelled:
                         break
                     name = vfs.basename(src.rstrip('/'))
                     job.text = name
+                    job.icon = ('folder-symbolic' if vfs.is_dir(src) and not vfs.is_link(src)
+                                else 'text-x-generic-symbolic')
                     if not total:
                         job.fraction = i / len(paths)
                     target = vfs.join(dest, vfs.basename(src.rstrip('/')))
@@ -2415,7 +2433,11 @@ class MainWindow(Gtk.ApplicationWindow):
                         isdir = vfs.is_dir(src) and not vfs.is_link(src)
                         if move:
                             if isdir and vfs.is_dir(target):
-                                vfs.copy_with_progress(src, target, job, vfs.size_of(src), 0, name)
+                                b, f = vfs.measure(src)
+                                job.bytes_total = b
+                                job.files_total = f
+                                vfs.copy_with_progress(src, target, job, b, 0, name,
+                                                       files_total=f)
                                 if job.cancelled:
                                     self._drop_partial(target, created)
                                     break
@@ -2424,7 +2446,9 @@ class MainWindow(Gtk.ApplicationWindow):
                             else:
                                 vfs.move(src, target)
                         else:
-                            done = vfs.copy_with_progress(src, target, job, total, done, name)
+                            done, files_done = vfs.copy_with_progress(
+                                src, target, job, total, done, name,
+                                files_done, files_total)
                             if job.cancelled:
                                 self._drop_partial(target, created)
                                 break
@@ -2434,7 +2458,7 @@ class MainWindow(Gtk.ApplicationWindow):
                         if job.cancelled:
                             break
                         errs.append('%s: %s' % (src, getattr(e, 'message', e)))
-                if not job.cancelled and total:
+                if not job.cancelled:
                     job.fraction = 1.0
                 return errs
 
@@ -2447,7 +2471,11 @@ class MainWindow(Gtk.ApplicationWindow):
                 if on_done is not None:
                     on_done(errs, bool(job and job.cancelled))
                 self.reload_all()
-            self.run_job(_('Moving') if move else _('Copying'), work, done)
+            icon = ('folder-symbolic' if any(vfs.is_dir(p) and not vfs.is_link(p) for p in paths)
+                    else 'text-x-generic-symbolic')
+            self.run_job(_('Moving files') if move else _('Copying files'), work, done,
+                         subtitle=(_('Moving') if move else _('Copying')) + '…',
+                         pausable=True, icon=icon)
         if clash:
             self.ask_conflict(_('{0} item(s) already exist in the destination folder.').format(len(clash)), go)
         else:

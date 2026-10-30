@@ -5,7 +5,7 @@ from .icons import clear_icon_cache, set_badge_theme
 
 # ───────────────────────────── тема оформления ─────────────────────────────
 PAL = dict(bg='#08071F', surface='#211F35', border='#302D45', text='#EEEBFA',
-           muted='#8B879C', accent='#458BDF', focus='#FFF59B')
+           muted='#8B879C', accent='#458BDF', focus='#FFF59B', soft='#D0CED1')
 
 BASE_CSS = """
 .sz-toolbar { padding: 3px 6px; }
@@ -138,6 +138,20 @@ treeview.view:focus, treeview.view:focus-visible
   { outline: none; box-shadow: none; border-color: transparent; }
 notebook { border: none; box-shadow: none; }
 window:drop(active), window :drop(active) { outline: none; box-shadow: none; border-color: transparent; }
+/* ── окно прогресса ── */
+.sz-prog-header { min-height: 46px; box-shadow: none; }
+.sz-prog-title { font-weight: 700; }
+.sz-prog-body { padding: 18px 24px 20px 24px; }
+.sz-prog-icon { border-radius: 10px; padding: 9px; background: alpha(currentColor, 0.07); }
+.sz-prog-name { font-weight: 700; font-size: 150%; }
+.sz-prog-sub { font-size: 92%; opacity: 0.62; }
+.sz-prog-pct { font-weight: 700; font-size: 150%; }
+.sz-prog-info { font-size: 92%; opacity: 0.62; }
+.sz-prog-files { font-size: 92%; opacity: 0.62; }
+.sz-prog-bar trough { min-height: 8px; border-radius: 4px; }
+.sz-prog-bar progress { min-height: 8px; border-radius: 4px; }
+.sz-prog-footer { padding: 13px 20px; border-top: 1px solid alpha(currentColor, 0.14); }
+.sz-prog-cancel, .sz-prog-pause { padding: 7px 18px; border-radius: 8px; }
 """
 
 MIDNIGHT_CSS = """
@@ -248,6 +262,16 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight textview, .sz-midnight textview text { background: $bg; color: $text; }
 .sz-midnight progressbar trough { background: $surface; border: none; }
 .sz-midnight progressbar progress { background: $focus; border: none; }
+.sz-midnight .sz-prog-icon { background: $surface; }
+.sz-midnight .sz-prog-sub, .sz-midnight .sz-prog-info,
+.sz-midnight .sz-prog-files { color: $soft; opacity: 1; }
+.sz-midnight .sz-prog-bar trough { background: $surface; border: none; }
+.sz-midnight .sz-prog-bar progress { background: $soft; border: none; }
+.sz-midnight .sz-prog-footer { border-top: 1px solid $border; }
+.sz-midnight .sz-prog-cancel { background: transparent; border: 1px solid $surface; color: $text; }
+.sz-midnight .sz-prog-cancel:hover { background: $surface; }
+.sz-midnight .sz-prog-pause { background: $surface; border: 1px solid $surface; color: $text; }
+.sz-midnight .sz-prog-pause:hover { background: $border; }
 .sz-midnight dropdown > button { background: $surface; border: 1px solid $border; }
 .sz-midnight popover.menu listview { background: transparent; }
 .sz-midnight .sz-statusbar { background: $surface; border-top: 1px solid $border; }

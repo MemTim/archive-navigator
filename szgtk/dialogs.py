@@ -253,46 +253,138 @@ def pick(parent, kind, title, cb, initial=None, name=None):
 
 
 # ───────────────────────────── прогресс ─────────────────────────────
-def _rate_text(bps):
-    """Скорость всегда в удобных единицах, независимо от режима размеров."""
+def _progress_cfg():
+    """Настройки размеров для прогресса: всегда удобные единицы."""
     cfg = dict(DISP)
     cfg['size_mode'] = 'adaptive'
     if int(cfg.get('size_decimals') or 0) < 1:
         cfg['size_decimals'] = 1
-    return _('{0}/s').format(format_size(bps, cfg))
+    return cfg
+
+
+def _size_text(n):
+    return format_size(n, _progress_cfg())
+
+
+def _rate_text(bps):
+    return _('{0}/s').format(_size_text(bps))
+
+
+def _duration_text(sec):
+    sec = max(0, int(round(sec)))
+    if sec >= 3600:
+        return _('{0} h {1} min').format(sec // 3600, (sec % 3600) // 60)
+    if sec >= 60:
+        return _('{0} min {1} s').format(sec // 60, sec % 60)
+    return _('{0} s').format(sec)
 
 
 class ProgressDialog(DlgBase):
     def __init__(self, parent, title, job):
-        # Не модальный: пока идёт архивация, окно проводника должно оставаться
+        # Не модальный: пока идёт операция, окно проводника должно оставаться
         # рабочим — можно выделять, открывать и перемещать файлы.
         super().__init__(title=title, modal=False, transient_for=parent,
                          resizable=False, destroy_with_parent=True)
+        header = Gtk.HeaderBar()
+        header.add_css_class('sz-prog-header')
+        header.set_show_title_buttons(False)
+        head = lbl(title, xalign=0.5)
+        head.add_css_class('sz-prog-title')
+        header.set_title_widget(head)
+        self.set_titlebar(header)
         self.job = job
         self._alive = True
         self._samples = []
         self._rate = None
-        self.set_default_size(440, -1)
-        root = vbox(10, 16)
+        self._eta = None
+        self._last_f = None
+        self._speed_text = ''
+        self._paused_shown = job.paused
+        self._icon_name = ''
+        self.set_default_size(500, -1)
+
+        root = vbox(0)
         self.set_child(root)
-        root.append(lbl(title))
+
+        body = vbox(16, 24)
+        body.add_css_class('sz-prog-body')
+        root.append(body)
+
+        top = hbox(14)
+        plate = Gtk.Box()
+        plate.add_css_class('sz-prog-icon')
+        plate.set_valign(Gtk.Align.START)
+        self.icon = Gtk.Image.new_from_icon_name('text-x-generic-symbolic')
+        self.icon.set_pixel_size(26)
+        plate.append(self.icon)
+        top.append(plate)
+        names = vbox(2)
+        names.set_valign(Gtk.Align.CENTER)
+        names.set_hexpand(True)
+        self.name = lbl(job.text or title)
+        self.name.add_css_class('sz-prog-name')
+        self.name.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        self.sub = lbl(job.subtitle or (title + '…'))
+        self.sub.add_css_class('sz-prog-sub')
+        names.append(self.name)
+        names.append(self.sub)
+        top.append(names)
+        body.append(top)
+
+        pctrow = hbox(12)
+        self.pct = lbl('')
+        self.pct.add_css_class('sz-prog-pct')
+        self.pct.set_hexpand(True)
+        self.eta = lbl('', xalign=1.0)
+        self.eta.add_css_class('sz-prog-info')
+        pctrow.append(self.pct)
+        pctrow.append(self.eta)
+        body.append(pctrow)
+
         self.bar = Gtk.ProgressBar()
-        root.append(self.bar)
-        row = hbox(12)
-        self.lab = lbl('')
-        self.lab.set_hexpand(True)
-        self.lab.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
-        self.lab.set_max_width_chars(60)
-        row.append(self.lab)
-        self.info = lbl('', xalign=1.0)
-        row.append(self.info)
-        root.append(row)
-        cancel = Gtk.Button(label=_('Cancel'))
-        cancel.set_halign(Gtk.Align.END)
-        cancel.connect('clicked', lambda b: job.cancel())
-        root.append(cancel)
+        self.bar.add_css_class('sz-prog-bar')
+        body.append(self.bar)
+
+        self.bytesrow = hbox(12)
+        self.bytes = lbl('')
+        self.bytes.add_css_class('sz-prog-info')
+        self.bytes.set_hexpand(True)
+        self.speed = lbl('', xalign=1.0)
+        self.speed.add_css_class('sz-prog-info')
+        self.bytesrow.append(self.bytes)
+        self.bytesrow.append(self.speed)
+        body.append(self.bytesrow)
+
+        self.files = lbl('')
+        self.files.add_css_class('sz-prog-files')
+        body.append(self.files)
+
+        footer = hbox(10)
+        footer.add_css_class('sz-prog-footer')
+        footer.set_hexpand(True)
+        spacer = Gtk.Box()
+        spacer.set_hexpand(True)
+        footer.append(spacer)
+        self.cancel_btn = Gtk.Button(label=_('Cancel'))
+        self.cancel_btn.add_css_class('sz-prog-cancel')
+        self.cancel_btn.connect('clicked', lambda b: job.cancel())
+        footer.append(self.cancel_btn)
+        self.pause_btn = Gtk.Button()
+        self.pause_btn.add_css_class('sz-prog-pause')
+        pb = hbox(6)
+        self.pause_img = Gtk.Image.new_from_icon_name('media-playback-pause-symbolic')
+        self.pause_lab = lbl(_('Pause'))
+        pb.append(self.pause_img)
+        pb.append(self.pause_lab)
+        self.pause_btn.set_child(pb)
+        self.pause_btn.connect('clicked', self._toggle_pause)
+        self.pause_btn.set_visible(bool(job.pausable))
+        footer.append(self.pause_btn)
+        root.append(footer)
+
         self.connect('close-request', self._on_close)
         self.connect('destroy', self._on_destroy)
+        self._sync_icon()
         GLib.timeout_add(100, self._tick)
         GLib.timeout_add(250, self._delayed_present)
 
@@ -307,6 +399,24 @@ class ProgressDialog(DlgBase):
         if self._alive:
             self.present()
         return False
+
+    def _sync_icon(self):
+        icon = self.job.icon or 'text-x-generic-symbolic'
+        if icon != self._icon_name:
+            self._icon_name = icon
+            self.icon.set_from_icon_name(icon)
+
+    def _toggle_pause(self, *a):
+        self.job.toggle_pause()
+        self._show_paused()
+
+    def _show_paused(self):
+        self._paused_shown = self.job.paused
+        paused = self.job.paused
+        self.pause_lab.set_text(_('Resume') if paused else _('Pause'))
+        self.pause_img.set_from_icon_name(
+            'media-playback-start-symbolic' if paused else 'media-playback-pause-symbolic')
+        self.sub.set_text(_('Paused') if paused else (self.job.subtitle or ''))
 
     def _speed(self, now):
         """Скорость по последней секунде (байт/с), если известны байты."""
@@ -327,19 +437,53 @@ class ProgressDialog(DlgBase):
     def _tick(self):
         if not self._alive:
             return False
-        f = self.job.fraction
+        job = self.job
+        self.name.set_text(job.text or self.get_title())
+        self._sync_icon()
+        if job.paused != self._paused_shown:
+            self._show_paused()
+
+        f = job.fraction
         if f is None:
             self.bar.pulse()
-            self.info.set_text('')
+            self.pct.set_text('…')
+            self.eta.set_text('')
         else:
             f = min(1.0, max(0.0, f))
+            if self._last_f is not None and f + 0.05 < self._last_f:
+                # прогресс начался заново (следующий элемент при перемещении)
+                self._eta = None
+            self._last_f = f
             self.bar.set_fraction(f)
-            parts = ['%d %%' % round(f * 100)]
-            speed = self._speed(time.monotonic())
-            if speed and f < 1.0:
-                parts.append(_rate_text(speed))
-            self.info.set_text(' · '.join(parts))
-        self.lab.set_text(self.job.text)
+            self.pct.set_text('%d %%' % round(f * 100))
+            if job.paused:
+                pass
+            elif 0.01 < f < 0.995 and job.elapsed() > 0.3:
+                raw = job.elapsed() * (1.0 - f) / f
+                self._eta = raw if self._eta is None else self._eta * 0.7 + raw * 0.3
+                self.eta.set_text(_('Remaining {0}').format(_duration_text(self._eta)))
+            elif f >= 0.995:
+                self.eta.set_text('')
+
+        if job.bytes_total:
+            self.bytesrow.set_visible(True)
+            self.bytes.set_text(_('{0} of {1}').format(
+                _size_text(job.bytes_done), _size_text(job.bytes_total)))
+            if not job.paused:
+                speed = self._speed(time.monotonic())
+                if speed and f is not None and f < 1.0:
+                    self._speed_text = _rate_text(speed)
+                elif f is not None and f >= 1.0:
+                    self._speed_text = ''
+                self.speed.set_text(self._speed_text)
+        else:
+            self.bytesrow.set_visible(False)
+
+        if job.files_total and job.files_label:
+            self.files.set_visible(True)
+            self.files.set_text(job.files_label.format(job.files_done, job.files_total))
+        else:
+            self.files.set_visible(False)
         return True
 
     def finish(self):

@@ -2,6 +2,7 @@
 from .imports import *  # noqa: F401,F403
 from . import diagnostics
 from .utils import parse_time
+import signal
 
 # ───────────────────────────── бэкенд 7z ─────────────────────────────
 RE_PROGRESS = re.compile(r'^\s*(\d+)%\s*(.*)$')
@@ -89,25 +90,85 @@ class Job:
         self.procs = []
         self.fraction = None
         self.text = ''
-        # байты для копирования: по ним диалог считает проценты и скорость
+        # байты и файлы для копирования: по ним диалог считает проценты,
+        # скорость, ETA и счётчик скопированных файлов
         self.bytes_done = 0
         self.bytes_total = 0
+        self.files_done = 0
+        self.files_total = 0
+        self.files_label = ''
+        self.icon = ''
+        self.subtitle = ''
+        self.pausable = False
+        self.paused = False
+        self.started = time.monotonic()
+        self.paused_total = 0.0
+        self._paused_since = 0.0
+        self._pause = threading.Event()
+        self._pause.set()
         # общий токен отмены для операций без внешнего процесса (копирование)
         self.cancellable = Gio.Cancellable()
+
+    def elapsed(self):
+        """Время работы без учёта пауз."""
+        now = time.monotonic()
+        paused = (now - self._paused_since) if self.paused else 0.0
+        return max(0.0, now - self.started - self.paused_total - paused)
+
+    def pause(self):
+        if self.cancelled or self.paused:
+            return
+        self.paused = True
+        self._paused_since = time.monotonic()
+        self._pause.clear()
+        for p in self.procs:
+            self._signal(p, signal.SIGSTOP)
+
+    def resume(self):
+        if not self.paused:
+            return
+        self.paused_total += time.monotonic() - self._paused_since
+        self.paused = False
+        self._pause.set()
+        for p in self.procs:
+            self._signal(p, signal.SIGCONT)
+
+    def toggle_pause(self):
+        self.resume() if self.paused else self.pause()
+
+    def wait_if_paused(self):
+        """Блокировать рабочий поток, пока задание на паузе."""
+        while not self.cancelled and self.paused:
+            self._pause.wait(0.2)
 
     def register(self, proc):
         self.procs.append(proc)
         if self.cancelled:
             self._kill(proc)
+        elif self.paused:
+            self._signal(proc, signal.SIGSTOP)
 
     def cancel(self):
         self.cancelled = True
+        self._pause.set()
+        if self.paused:
+            self.paused_total += time.monotonic() - self._paused_since
+            self.paused = False
         try:
             self.cancellable.cancel()
         except Exception:
             pass
         for p in self.procs:
+            self._signal(p, signal.SIGCONT)
             self._kill(p)
+
+    @staticmethod
+    def _signal(p, sig):
+        try:
+            if p.poll() is None:
+                os.kill(p.pid, sig)
+        except (OSError, ProcessLookupError):
+            pass
 
     @staticmethod
     def _kill(p):
