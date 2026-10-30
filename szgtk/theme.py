@@ -55,6 +55,7 @@ BASE_CSS = """
 .sz-side-edit.sz-side-edit-on { background: alpha(currentColor, 0.16); }
 .sz-side-job { color: @theme_selected_bg_color; }
 .sz-job-pop { padding: 10px; }
+.sz-job-action { font-weight: 700; color: @theme_selected_bg_color; }
 .sz-job-title { font-weight: 700; }
 .sz-job-file { opacity: 0.65; }
 .sz-job-info { font-size: 90%; opacity: 0.8; }
@@ -310,6 +311,7 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-side-device-row.sz-side-active { background: $surface; box-shadow: none; }
 .sz-midnight .sz-side-device-row.sz-side-active .sz-side-bar { box-shadow: inset 3px 0 $focus; }
 .sz-midnight .sz-side-job { color: $focus; }
+.sz-midnight .sz-job-action { color: $focus; }
 .sz-midnight .sz-job-bar trough { background: $surface; border: none; }
 .sz-midnight .sz-job-bar progress { background: $focus; border: none; }
 .sz-midnight .sz-job-stop { background: transparent; border: 1px solid $surface; color: $text; }

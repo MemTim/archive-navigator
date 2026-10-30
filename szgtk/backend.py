@@ -99,6 +99,8 @@ class Job:
         self.files_label = ''
         self.icon = ''
         self.subtitle = ''
+        # вид операции: copy / move / archive / extract (для карточки в панели)
+        self.action = ''
         self.pausable = False
         self.paused = False
         self.started = time.monotonic()

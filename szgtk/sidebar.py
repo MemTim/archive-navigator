@@ -144,6 +144,16 @@ def _sidebar_job_ring(area, cr, w, h):
     cr.stroke()
 
 
+def _job_action_text(action):
+    """Короткое название операции для карточки в боковой панели."""
+    return {
+        'copy': _('Copying'),
+        'move': _('Moving'),
+        'archive': _('Archiving'),
+        'extract': _('Extracting'),
+    }.get(action, '')
+
+
 def _sidebar_pencil(area, cr, w, h):
     """Карандаш из Vector 8.svg, перекрашенный в текущий цвет темы."""
     c = area.get_color()
@@ -329,7 +339,7 @@ class Sidebar(Gtk.Box):
         self.job_area.fraction = f
         self.job_area.queue_draw()
         snap = dlg.progress_snapshot()
-        tip = snap['title'] or _('Operation in progress')
+        tip = _job_action_text(snap['action']) or snap['title'] or _('Operation in progress')
         if snap['pct']:
             tip += ' · ' + snap['pct']
         if len(self.job_dialogs) > 1:
@@ -365,6 +375,8 @@ class Sidebar(Gtk.Box):
             sep = self._job_popup_row(dlg, i == 0)
             if sep is not None:
                 box.append(sep)
+            action_l = lbl('')
+            action_l.add_css_class('sz-job-action')
             title = lbl('')
             title.add_css_class('sz-job-title')
             file_l = lbl('')
@@ -402,11 +414,11 @@ class Sidebar(Gtk.Box):
             show.connect('clicked', lambda b, d=dlg: self._show_job(d))
             btns.append(stop)
             btns.append(show)
-            for w in (title, file_l, bar, info, size, speed, files, btns):
+            for w in (action_l, title, file_l, bar, info, size, speed, files, btns):
                 box.append(w)
-            sections.append(dict(dlg=dlg, title=title, file=file_l, bar=bar, pct=pct,
-                                 eta=eta, size=size, speed=speed, files=files,
-                                 stop=stop, show=show))
+            sections.append(dict(dlg=dlg, action=action_l, title=title, file=file_l,
+                                 bar=bar, pct=pct, eta=eta, size=size, speed=speed,
+                                 files=files, stop=stop, show=show))
         pop.set_child(box)
         pop.set_parent(self.job_btn)
         pop.connect('closed', self._on_job_popup_closed)
@@ -443,7 +455,15 @@ class Sidebar(Gtk.Box):
             snap = dlg.progress_snapshot()
             if not snap['alive']:
                 continue
-            sec['title'].set_text(snap['title'])
+            action = _job_action_text(snap['action'])
+            if action:
+                sec['action'].set_text(_('Operation') + ': ' + action)
+                sec['action'].set_visible(True)
+                sec['title'].set_visible(False)
+            else:
+                sec['action'].set_visible(False)
+                sec['title'].set_text(snap['title'])
+                sec['title'].set_visible(True)
             sec['file'].set_text(snap['text'] or snap['sub'])
             f = snap['fraction']
             if f is None:

@@ -162,6 +162,7 @@ RU.update({
     'Hide the window and show progress in the sidebar':
         'Скрыть окно и показывать прогресс в боковой панели',
     'Show window': 'Показать окно', 'Speed': 'Скорость',
+    'Operation': 'Операция', 'Archiving': 'Архивирование',
     'Add': 'Добавить', 'Extract': 'Извлечь', 'Test': 'Тест', 'Move': 'Переместить', 'Info': 'Информация',
     'Open': 'Открыть', 'Open with…': 'Открыть с помощью…', 'Run': 'Запустить',
     'Choose an application to open the file:': 'Выберите программу для открытия файла:',

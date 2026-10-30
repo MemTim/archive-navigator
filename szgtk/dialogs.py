@@ -462,6 +462,7 @@ class ProgressDialog(DlgBase):
             bytes=self.bytes.get_text() if self.bytesrow.get_visible() else '',
             speed=self.speed.get_text(),
             files=self.files.get_text() if self.files.get_visible() else '',
+            action=self.job.action,
             fraction=self.job.fraction,
             cancelled=self.job.cancelled,
             paused=self.job.paused,

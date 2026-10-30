@@ -1219,11 +1219,12 @@ class MainWindow(Gtk.ApplicationWindow):
 
     # ───────────── фоновые задачи ─────────────
     def run_job(self, title, worker, on_done, parent=None, subtitle=None, pausable=False,
-                icon=''):
+                icon='', action=''):
         job = Job()
         job.subtitle = subtitle or (title + '…')
         job.pausable = pausable
         job.icon = icon
+        job.action = action
         dlg = ProgressDialog(parent or self, title, job)
         res = {}
         app = self.get_application()
@@ -1284,7 +1285,8 @@ class MainWindow(Gtk.ApplicationWindow):
             on_done(res)
         icon = ('package-x-generic-symbolic' if command in ('a', 'u', 'x')
                 else 'text-x-generic-symbolic')
-        self.run_job(title, work, done, pausable=True, icon=icon)
+        action = {'a': 'archive', 'u': 'archive', 'x': 'extract'}.get(command, '')
+        self.run_job(title, work, done, pausable=True, icon=icon, action=action)
 
     def report(self, res, title=None):
         if res is None or res.cancelled:
@@ -1295,7 +1297,7 @@ class MainWindow(Gtk.ApplicationWindow):
         text_dialog(self, title or '7-Zip', (_('Warning') + ':\n' if res.rc == 1 else '') + text)
         return res.rc == 1
 
-    def batch(self, title, archives, runner, on_complete, password=None):
+    def batch(self, title, archives, runner, on_complete, password=None, action=''):
         """Запускает runner(arc, pw, job) для каждого архива; повторяет с паролем при необходимости."""
         def work(job):
             out = []
@@ -1322,11 +1324,12 @@ class MainWindow(Gtk.ApplicationWindow):
                     if p is None:
                         on_complete(good + [(a, r) for a, r, pw in results if a in retry])
                     else:
-                        self.batch(title, retry, runner, lambda rs: on_complete(good + rs), p)
+                        self.batch(title, retry, runner, lambda rs: on_complete(good + rs), p,
+                                   action=action)
                 self.ask_password(retry[0], got)
                 return
             on_complete([(a, r) for a, r, pw in results])
-        self.run_job(title, work, done)
+        self.run_job(title, work, done, action=action)
 
     def ask_conflict(self, msg, cb, no_skip=False):
         if no_skip:
@@ -1853,7 +1856,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 if after:
                     after()
             self.reload_all()
-        self.batch(_('Extracting'), archives, runner, complete, password=opts.get('password') or None)
+        self.batch(_('Extracting'), archives, runner, complete,
+                   password=opts.get('password') or None, action='extract')
 
     def op_test(self, *a):
         p = self.active
@@ -2614,7 +2618,8 @@ class MainWindow(Gtk.ApplicationWindow):
                     else 'text-x-generic-symbolic')
             self.run_job(_('Moving files') if move else _('Copying files'), work, done,
                          subtitle=(_('Moving') if move else _('Copying')) + '…',
-                         pausable=True, icon=icon)
+                         pausable=True, icon=icon,
+                         action=('move' if move else 'copy'))
         if clash:
             self.ask_conflict(_('{0} item(s) already exist in the destination folder.').format(len(clash)), go)
         else:
