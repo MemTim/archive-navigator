@@ -486,6 +486,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 target = dirs[0].full if dirs else p.path
             else:
                 target = vfs.dirname(p.arc.display)
+        if vfs.is_uri(target):
+            return
         if not vfs.is_admin(target) and not vfs.is_dir(target):
             parent = vfs.dirname(target)
             if parent:
@@ -857,7 +859,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 or self.closing or not self.get_mapped()):
             return False
         loc = self.active.current_dir()
-        if not loc or vfs.is_admin(loc):
+        if not loc or vfs.is_uri(loc):
             self.st_disk.set_text('')
             self.st_disk.set_tooltip_text(None)
             return False
@@ -965,11 +967,13 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def panel_changed(self, panel):
         if self.sidebar is not None and panel is self.active:
-            self.sidebar.set_active(panel.current_dir() if panel.mode == 'fs' and not vfs.is_admin(panel.path) else None)
+            self.sidebar.set_active(panel.current_dir() if panel.mode == 'fs' and not vfs.is_uri(panel.path) else None)
         if panel is self.active:
             self._refresh_disk_space()
 
     def place_label(self, path):
+        if vfs.is_uri(path):
+            return None
         norm = os.path.normpath(path)
         if self.sidebar is not None:
             device = self.sidebar.device_label(norm)
@@ -1068,7 +1072,7 @@ class MainWindow(Gtk.ApplicationWindow):
         entries['new-folder'] = (_('Create folder'), 'win.new-folder')
         entries['select-all'] = (_('Select all'), 'win.select-all')
         entries['refresh'] = (_('Refresh'), 'win.refresh')
-        if fs and not IS_ROOT:
+        if fs and not IS_ROOT and not vfs.is_uri(p.path):
             entries['open-as-root'] = (_('Open as root'), 'win.open-as-root')
 
         hidden = hidden_menu_items(self.conf)
@@ -1179,7 +1183,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def list_async(self, path, pw, cb):
         def work():
             tmp, local = None, path
-            if vfs.is_admin(path):
+            if vfs.is_uri(path):
                 try:
                     tmp, local = vfs.copy_to_temp(path)
                 except Exception as e:
@@ -1335,7 +1339,7 @@ class MainWindow(Gtk.ApplicationWindow):
     # ───────────── открытие файлов ─────────────
     def _prepare_open(self, path):
         """Для admin:// копирует во временный файл; возвращает локальный путь."""
-        if not vfs.is_admin(path):
+        if not vfs.is_uri(path):
             return path
         try:
             tmp, local = vfs.copy_to_temp(path)
@@ -1464,7 +1468,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.run7(_('Extracting'), 'x', ['-y', '-o' + tmp, '-aoa'], [a.path, item.full], done, archive=a.path)
 
     def _sync_archive(self, a):
-        if not vfs.is_admin(getattr(a, 'source', '')):
+        if not vfs.is_uri(getattr(a, 'source', '')):
             return
         try:
             vfs.copy(a.path, a.source)
@@ -1607,7 +1611,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def start_add(self, paths, opts, subdir=''):
         archive = opts['archive']
-        dest_admin = vfs.is_admin(archive)
+        dest_admin = vfs.is_uri(archive)
         tmp_arc = src_tmp = None
         local_archive = archive
         if dest_admin:
@@ -1618,7 +1622,7 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             archive = os.path.abspath(os.path.expanduser(archive))
             local_archive = archive
-        if any(vfs.is_admin(x) for x in paths):
+        if any(vfs.is_uri(x) for x in paths):
             src_tmp = tempfile.mkdtemp(prefix='7zgtk-src-')
             staged = []
             for x in paths:
@@ -1667,7 +1671,7 @@ class MainWindow(Gtk.ApplicationWindow):
             alert(self, _('Modifying nested archives is not supported'))
             return
         src_tmp = None
-        if any(vfs.is_admin(x) for x in paths):
+        if any(vfs.is_uri(x) for x in paths):
             src_tmp = tempfile.mkdtemp(prefix='7zgtk-src-')
             staged = []
             for x in paths:
@@ -1718,12 +1722,12 @@ class MainWindow(Gtk.ApplicationWindow):
                           lambda d, o: self.extract_start([arc.path], d, o, names, arc.entries, after)).present()
 
     def _conflicts_for(self, arc, names, dest, pathmode):
-        if vfs.is_admin(dest):
+        if vfs.is_uri(dest):
             return 0
         pw = self.passwords.get(arc)
         tmp = None
         try:
-            if vfs.is_admin(arc):
+            if vfs.is_uri(arc):
                 tmp, arc = vfs.copy_to_temp(arc)
             if TAR_COMPOUND.search(arc):
                 if os.path.getsize(arc) > 256 * 1024 * 1024:
@@ -1773,7 +1777,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 run(dict(opts, overwrite='overwrite'))
         if entries is not None:
             dest0 = dest_for(archives[0])
-            proceed(0 if vfs.is_admin(dest0) else
+            proceed(0 if vfs.is_uri(dest0) else
                     count_conflicts(entries, names, dest0, opts['pathmode']))
             return
 
@@ -1801,9 +1805,9 @@ class MainWindow(Gtk.ApplicationWindow):
             tmp_arc = tmp_out = None
             try:
                 local = arc
-                if vfs.is_admin(arc):
+                if vfs.is_uri(arc):
                     tmp_arc, local = vfs.copy_to_temp(arc)
-                if vfs.is_admin(dest):
+                if vfs.is_uri(dest):
                     tmp_out = tempfile.mkdtemp(prefix='7zgtk-out-')
                     cmd, sw = extract_switches(opts, tmp_out)
                     if names is None and TAR_COMPOUND.search(local) and cmd == 'x':
@@ -1847,7 +1851,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         def runner(arc, pw, job):
             tmp, local = None, arc
-            if vfs.is_admin(arc):
+            if vfs.is_uri(arc):
                 tmp, local = vfs.copy_to_temp(arc)
             try:
                 return self.sz.run('t', ['-y'], [local], job=job, password=pw)
@@ -1889,7 +1893,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     None, _('Delete'), lambda: self.delete_in_archive(p, sel))
             return
         paths = [i.full for i in sel]
-        perm = permanent or not self.conf['use_trash'] or any(vfs.is_admin(x) for x in paths)
+        perm = permanent or not self.conf['use_trash'] or any(vfs.is_uri(x) for x in paths)
         msg = (_('Are you sure you want to permanently delete {0} item(s)?') if perm else
                _('Are you sure you want to move {0} item(s) to the Trash?')).format(len(paths))
 
@@ -2254,7 +2258,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _set_file_clipboard(self, paths):
         try:
-            files = [Gio.File.new_for_uri(p) if vfs.is_admin(p) else Gio.File.new_for_path(p)
+            files = [Gio.File.new_for_uri(p) if vfs.is_uri(p) else Gio.File.new_for_path(p)
                      for p in paths]
             fl = Gdk.FileList.new_from_list(files)
             v = GObject.Value()
@@ -2472,7 +2476,7 @@ class MainWindow(Gtk.ApplicationWindow):
         default = other.path if other is not None else p.path
         PromptDialog(self, _('Move') if move else _('Copy'),
                      _('Move to:') if move else _('Copy to:'), default, _('OK'),
-                     lambda d: self.fs_transfer(paths, os.path.expanduser(d), move),
+                     lambda d: self.fs_transfer(paths, d if vfs.is_uri(d) else os.path.expanduser(d), move),
                      folder_browse=True).present()
 
     def op_move(self, *a):
@@ -2489,10 +2493,10 @@ class MainWindow(Gtk.ApplicationWindow):
             pass
 
     def fs_transfer(self, paths, dest, move, on_done=None, record=True):
-        if not vfs.is_admin(dest):
+        if not vfs.is_uri(dest):
             dest = os.path.abspath(os.path.expanduser(dest))
         try:
-            if vfs.is_admin(dest):
+            if vfs.is_uri(dest):
                 if not vfs.mkdirs(dest):
                     raise OSError(_('Cannot create folder'))
             else:
@@ -2621,7 +2625,7 @@ class MainWindow(Gtk.ApplicationWindow):
             tmps, local = [], []
             try:
                 for pth in paths:
-                    if vfs.is_admin(pth):
+                    if vfs.is_uri(pth):
                         t, l = vfs.copy_to_temp(pth)
                         tmps.append(t)
                         local.append(l)
@@ -2651,9 +2655,9 @@ class MainWindow(Gtk.ApplicationWindow):
                 tmp_src = tmp_out = None
                 try:
                     local = src
-                    if vfs.is_admin(src):
+                    if vfs.is_uri(src):
                         tmp_src, local = vfs.copy_to_temp(src)
-                    if vfs.is_admin(dest):
+                    if vfs.is_uri(dest):
                         tmp_out = tempfile.mkdtemp(prefix='7zgtk-split-')
                         out = tmp_out
                     else:
@@ -2672,8 +2676,8 @@ class MainWindow(Gtk.ApplicationWindow):
                             shutil.rmtree(d, ignore_errors=True)
             self.run_job(_('Splitting'), worker,
                          lambda r, e, j: (alert(self, _('Error'), str(e)) if e else None, self.reload_all()))
-        dlg = SplitDialog(self, vfs.display(src) if vfs.is_admin(src) else src, go)
-        if vfs.is_admin(src):
+        dlg = SplitDialog(self, vfs.display(src) if vfs.is_uri(src) else src, go)
+        if vfs.is_uri(src):
             dlg.e_dest.set_text(vfs.dirname(src))
         dlg.present()
 
@@ -2690,7 +2694,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 tmp_src = tmp_out = None
                 try:
                     local_first = first
-                    if vfs.is_admin(first):
+                    if vfs.is_uri(first):
                         parent = vfs.dirname(first)
                         base = vfs.basename(first)[:-4]
                         pat = re.compile('^' + re.escape(base) + r'\.[0-9]{3}$')
@@ -2705,7 +2709,7 @@ class MainWindow(Gtk.ApplicationWindow):
                             raise OSError(_('No parts found'))
                         local_first = local_parts[0]
                     local_out = out
-                    if vfs.is_admin(out):
+                    if vfs.is_uri(out):
                         tmp_out = tempfile.mkdtemp(prefix='7zgtk-join-')
                         local_out = os.path.join(tmp_out, vfs.basename(out))
                     n = combine_worker(local_first, local_out, job)

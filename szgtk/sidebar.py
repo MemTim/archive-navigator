@@ -2,6 +2,8 @@
 from .imports import *  # noqa: F401,F403
 from urllib.parse import unquote
 from .i18n import _, N_
+from . import diagnostics
+from . import vfs
 from .dialogs import (alert, button_row, grid_row, hbox, lbl, make_dd,
                       new_dialog, pick_icon, vbox)
 from .favorites import name as fav_name, path as fav_path
@@ -804,35 +806,52 @@ class Sidebar(Gtk.Box):
             return None
         if not names:
             return None
-        if len(names) > 1:
-            host, share, user = self._uri_parts(uri)
-            if scheme == 'smb':
-                # для ресурса и для обзора сервера GVfs использует разные префиксы
-                preferred = [name for name in names
-                             if name.startswith('smb-share:' if share else 'smb:')]
-                if preferred:
-                    names = preferred
-            tokens = [host] if host else []
-            if scheme != 'smb' and user and not (scheme == 'ftp' and user == 'anonymous'):
-                tokens.append(user)
-            if scheme in ('smb', 'nfs', 'afp') and share:
-                tokens.append(share)
-            if scheme in ('dav', 'davs') and share:
-                tokens.append(share)
-            port = self._uri_port(uri)
-            if port:
-                tokens.append(port)
-            if tokens:
+        host, share, user = self._uri_parts(uri)
+        if scheme == 'smb':
+            # Для ресурса и для обзора сервера GVfs использует разные префиксы:
+            # smb-share:server=…,share=… и smb:server=…. Не подменяем корень
+            # сервера первым попавшимся ресурсом.
+            prefer = 'smb-share:' if share else 'smb:'
+            names = [name for name in names if name.startswith(prefer)]
+            if not names:
+                return None
+        tokens = [host] if host else []
+        if scheme != 'smb' and user and not (scheme == 'ftp' and user == 'anonymous'):
+            tokens.append(user)
+        if scheme in ('smb', 'nfs', 'afp') and share:
+            tokens.append(share)
+        if scheme in ('dav', 'davs') and share:
+            tokens.append(share)
+        port = self._uri_port(uri)
+        if port:
+            tokens.append(port)
+        if tokens:
+            matched = [name for name in names
+                       if all(token.lower() in unquote(name).lower()
+                              for token in tokens)]
+            if not matched and len(tokens) > 1:
+                # хост есть в имени, а пользователь/ресурс может не попасть
                 matched = [name for name in names
-                           if all(token.lower() in unquote(name).lower()
-                                  for token in tokens)]
-                if not matched and len(tokens) > 1:
-                    # хост есть в имени, а пользователь/ресурс может не попасть
-                    matched = [name for name in names
-                               if host.lower() in unquote(name).lower()]
-                if matched:
-                    names = matched
+                           if host.lower() in unquote(name).lower()]
+            if matched:
+                names = matched
+        if not names:
+            return None
         return os.path.join(root, sorted(names)[0])
+
+    def _mount_relative(self, uri, mount):
+        """Путь внутри точки монтирования: smb://host/share/sub → sub."""
+        root = self._mount_root_uri(mount)
+        if not root:
+            return ''
+        base = root.rstrip('/')
+        want = uri.rstrip('/')
+        if want.lower() == base.lower():
+            return ''
+        if not want.lower().startswith(base.lower() + '/'):
+            return ''
+        return '/'.join(unquote(part) for part in want[len(base) + 1:].split('/')
+                        if part)
 
     def _mount_local_path(self, mount, before=None):
         """Локальный путь точки монтирования (для GVfs — каталог gvfs-fuse)."""
@@ -1208,14 +1227,22 @@ class Sidebar(Gtk.Box):
         if '://' in address:
             prefix, rest = address.split('://', 1)
             if prefix.lower() in ('http', 'https'):
-                return ('davs://' if prefix.lower() == 'https' else 'dav://') + rest
-            return address
+                uri = ('davs://' if prefix.lower() == 'https' else 'dav://') + rest
+            else:
+                uri = address
+            # сервер без пути: добавляем '/', иначе GVfs может не найти точку
+            if '/' not in uri.split('://', 1)[1].split('?', 1)[0]:
+                uri += '/'
+            return uri
         if scheme not in NETWORK_SCHEMES:
             return None
         rest = address.lstrip('/')
         if not rest:
             return None
-        return '%s://%s' % (scheme, rest)
+        uri = '%s://%s' % (scheme, rest)
+        if '/' not in rest.split('?', 1)[0]:
+            uri += '/'
+        return uri
 
     def _find_network_mount(self, uri):
         """Найти точку монтирования, соответствующую URI (если GVfs не отдал её)."""
@@ -1291,19 +1318,59 @@ class Sidebar(Gtk.Box):
                 return
             if not self._alive:
                 return
-            try:
-                mount = src.find_enclosing_mount(None)
-            except GLib.Error:
-                mount = None
-            if mount is None:
-                mount = self._find_network_mount(uri)
-            if mount is None:
-                self.win.end_status_progress()
+            diagnostics.log('сеть: %s смонтирован, ищу точку монтирования', uri)
+            resolve(0)
+
+        def resolve(attempt):
+            """Найти точку монтирования, иначе открыть URI напрямую через GIO."""
+            if not self._alive:
+                return False
+            mount = self._find_network_mount(uri)
+            path = None
+            if mount is not None:
+                path = self._mount_local_path(mount, before)
+                rel = self._mount_relative(uri, mount) if path else ''
+                if rel:
+                    cand = os.path.join(path, rel)
+                    if os.path.isdir(cand):
+                        path = cand
+            if path is None:
+                path = self._gvfs_path_for_uri(uri)
+                if path is None:
+                    root = self._gvfs_root()
+                    if root and before is not None:
+                        prefs = self._gvfs_prefixes(scheme)
+                        fresh = sorted(self._gvfs_names() - set(before))
+                        for name in [n for n in fresh if n.startswith(prefs)] + fresh:
+                            cand = os.path.join(root, name)
+                            if os.path.isdir(cand):
+                                path = cand
+                                break
+            if path and os.path.isdir(path):
+                diagnostics.log('сеть: открываю каталог %s с попытки %d',
+                                path, attempt + 1)
                 self.rebuild()
-                alert(self.win, _('Cannot connect to server'),
-                      _('The server was connected, but its folder could not be opened.'))
-                return
-            self._open_mounted(mount, before, 'network', progress=True)
+                self._go(path)
+                self.win.end_status_progress(_('Server connected'))
+                return False
+            # Для серверов SMB GVfs часто не создаёт ни GMount, ни каталог
+            # в gvfs-fuse (например, smb://host/). Nautilus читает такой
+            # каталог прямо через GIO — так же поступаем и мы.
+            if vfs.is_dir(uri):
+                diagnostics.log('сеть: %s открываю напрямую через GIO', uri)
+                self.rebuild()
+                self._go(uri)
+                self.win.end_status_progress(_('Server connected'))
+                return False
+            if attempt < 30:
+                GLib.timeout_add(100, lambda: resolve(attempt + 1))
+                return False
+            diagnostics.log('сеть: не удалось открыть %s', uri)
+            self.win.end_status_progress()
+            self.rebuild()
+            alert(self.win, _('Cannot connect to server'),
+                  _('The server was connected, but its folder could not be opened.'))
+            return False
 
         try:
             gfile.mount_enclosing_volume(Gio.MountMountFlags.NONE, op, None, done)

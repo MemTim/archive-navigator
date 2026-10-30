@@ -25,27 +25,40 @@ def is_admin(path):
     return isinstance(path, str) and path.startswith(ADMIN)
 
 
+def is_uri(path):
+    """Путь задан URI (admin://, smb://, sftp:// …), а не локальным путём."""
+    return (isinstance(path, str) and '://' in path
+            and not path.startswith('file://'))
+
+
+def is_remote(path):
+    """Сетевой URI (всё, кроме admin:// и file://)."""
+    return is_uri(path) and not is_admin(path)
+
+
 def gfile(path):
-    return Gio.File.new_for_uri(path) if is_admin(path) else Gio.File.new_for_path(path)
+    return Gio.File.new_for_uri(path) if is_uri(path) else Gio.File.new_for_path(path)
 
 
 def display(path):
-    if not is_admin(path):
+    if not is_uri(path):
         return path
     try:
-        p = Gio.File.new_for_uri(path).get_path()
-        if p:
-            return p
-        rest = (Gio.File.new_for_uri(path).get_uri() or path)[len(ADMIN):]
-        if rest.startswith('/'):
-            return unquote(rest)
-        return unquote('/' + rest.split('/', 1)[1]) if '/' in rest else unquote(rest)
+        if is_admin(path):
+            p = Gio.File.new_for_uri(path).get_path()
+            if p:
+                return p
+            rest = (Gio.File.new_for_uri(path).get_uri() or path)[len(ADMIN):]
+            if rest.startswith('/'):
+                return unquote(rest)
+            return unquote('/' + rest.split('/', 1)[1]) if '/' in rest else unquote(rest)
+        return unquote(Gio.File.new_for_uri(path).get_uri() or path)
     except Exception:
-        return path[len(ADMIN):] or '/'
+        return path[len(ADMIN):] or path
 
 
 def uri(path):
-    return path if is_admin(path) else Gio.File.new_for_path(path).get_uri()
+    return path if is_uri(path) else Gio.File.new_for_path(path).get_uri()
 
 
 def admin_uri(path):
@@ -54,30 +67,47 @@ def admin_uri(path):
 
 
 def join(parent, name):
-    if is_admin(parent):
+    if is_uri(parent):
         return gfile(parent).get_child(name).get_uri()
     return os.path.join(parent, name)
 
 
 def basename(path):
-    if is_admin(path):
+    if is_uri(path):
+        name = None
         try:
-            return gfile(path).get_basename() or display(path).rstrip('/').rsplit('/', 1)[-1] or '/'
+            name = gfile(path).get_basename()
         except Exception:
-            return display(path).rstrip('/').rsplit('/', 1)[-1] or '/'
+            name = None
+        if not name or name == '/':
+            # GVfs считает корень тома (smb://host/, smb://host/share/)
+            # безымянным: берём последний компонент URI.
+            rest = path.split('://', 1)[-1].rstrip('/')
+            name = rest.rsplit('/', 1)[-1] if rest else '/'
+        return unquote(name) or '/'
     return os.path.basename(path)
 
 
 def dirname(path):
-    if is_admin(path):
-        f = gfile(path)
-        p = f.get_parent()
-        return p.get_uri() if p is not None else None
+    if is_uri(path):
+        try:
+            parent = gfile(path).get_parent()
+        except Exception:
+            parent = None
+        if parent is not None:
+            return parent.get_uri()
+        # У корня тома GVfs get_parent() == None. Для smb://host/share/
+        # родитель — сервер smb://host/, для smb://host/ — ничего.
+        head, sep, rest = path.partition('://')
+        rest = rest.rstrip('/')
+        if '/' not in rest:
+            return None
+        return head + sep + rest.rsplit('/', 1)[0] + '/'
     return os.path.dirname(path)
 
 
 def norm(path):
-    return display(path) if is_admin(path) else os.path.normpath(path)
+    return display(path) if is_uri(path) else os.path.normpath(path)
 
 
 def exists(path):
@@ -108,7 +138,7 @@ class Stat:
 
 
 def stat(path):
-    if not is_admin(path):
+    if not is_uri(path):
         return os.stat(path)
     i = _info(path, follow=True)
     typ = i.get_file_type()
@@ -126,7 +156,7 @@ def stat(path):
 
 def is_dir(path):
     try:
-        if is_admin(path):
+        if is_uri(path):
             return _info(path, follow=True).get_file_type() == Gio.FileType.DIRECTORY
         return os.path.isdir(path)
     except (OSError, GLib.Error):
@@ -135,7 +165,7 @@ def is_dir(path):
 
 def is_file(path):
     try:
-        if is_admin(path):
+        if is_uri(path):
             return _info(path, follow=True).get_file_type() == Gio.FileType.REGULAR
         return os.path.isfile(path)
     except (OSError, GLib.Error):
@@ -144,7 +174,7 @@ def is_file(path):
 
 def is_link(path):
     try:
-        if is_admin(path):
+        if is_uri(path):
             return _info(path, follow=False).get_file_type() == Gio.FileType.SYMBOLIC_LINK
         return os.path.islink(path)
     except (OSError, GLib.Error):
@@ -152,7 +182,7 @@ def is_link(path):
 
 
 def can_read(path):
-    if is_admin(path):
+    if is_uri(path):
         try:
             return _info(path, follow=True).get_attribute_boolean('access::can-read')
         except GLib.Error:
@@ -161,7 +191,7 @@ def can_read(path):
 
 
 def can_write(path):
-    if is_admin(path):
+    if is_uri(path):
         try:
             return _info(path, follow=True).get_attribute_boolean('access::can-write')
         except GLib.Error:
@@ -170,7 +200,7 @@ def can_write(path):
 
 
 def can_exec(path):
-    if is_admin(path):
+    if is_uri(path):
         try:
             return _info(path, follow=True).get_attribute_boolean('access::can-execute')
         except GLib.Error:
@@ -180,7 +210,7 @@ def can_exec(path):
 
 def is_program(path):
     """Исполняемый файл, который можно запустить напрямую (ELF или скрипт с shebang)."""
-    if is_admin(path) or is_dir(path) or not can_exec(path):
+    if is_uri(path) or is_dir(path) or not can_exec(path):
         return False
     name = os.path.basename(path)
     if '.so' in name:                       # разделяемые библиотеки не запускаем
@@ -205,7 +235,7 @@ class Entry:
 
 def listdir(path):
     out = []
-    if is_admin(path):
+    if is_uri(path):
         try:
             en = gfile(path).enumerate_children(ATTRS, NOFOLLOW, None)
         except GLib.Error as e:
@@ -285,7 +315,7 @@ def _delete_tree(path):
 
 
 def remove(path):
-    if not is_admin(path):
+    if not is_uri(path):
         if os.path.isdir(path) and not os.path.islink(path):
             shutil.rmtree(path)
         else:
@@ -295,7 +325,7 @@ def remove(path):
 
 
 def trash(path):
-    if not is_admin(path):
+    if not is_uri(path):
         Gio.File.new_for_path(path).trash(None)
         return
     try:
@@ -306,7 +336,7 @@ def trash(path):
 
 def trash_with_path(path):
     """Переместить в корзину и вернуть путь файла в корзине (если удалось узнать)."""
-    if is_admin(path):
+    if is_uri(path):
         trash(path)
         return None
     data_dir = GLib.get_user_data_dir()
@@ -346,7 +376,7 @@ def trash_with_path(path):
 
 
 def rename(path, new_name):
-    if not is_admin(path):
+    if not is_uri(path):
         new = os.path.join(os.path.dirname(path), new_name)
         os.rename(path, new)
         return new
@@ -515,7 +545,7 @@ def move(src, dst):
 def same_device(src, dst):
     """Лежат ли src и dst на одном устройстве (тогда move — это rename)."""
     try:
-        if is_admin(src) or is_admin(dst):
+        if is_uri(src) or is_uri(dst):
             return False
         a = os.stat(src)
         probe = dst if os.path.exists(dst) else (os.path.dirname(dst) or '.')
@@ -526,6 +556,18 @@ def same_device(src, dst):
 
 def unique(path):
     if not exists(path):
+        return path
+    if is_remote(path):
+        # Новое имя строим от URI, чтобы не потерять схему и авторитет.
+        name = basename(path) or 'file'
+        root, ext = os.path.splitext(name)
+        parent = gfile(path).get_parent()
+        i = 1
+        while parent is not None:
+            cand = parent.get_child('%s (%d)%s' % (root, i, ext)).get_uri()
+            if not exists(cand):
+                return cand
+            i += 1
         return path
     base = display(path) if is_admin(path) else path
     root, ext = os.path.splitext(base)

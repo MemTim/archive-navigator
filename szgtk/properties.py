@@ -166,7 +166,7 @@ def _icon_for(path, info, is_dir):
 def _owner_group(path, st):
     uid = gid = None
     try:
-        if vfs.is_admin(path):
+        if vfs.is_uri(path):
             info = vfs.gfile(path).query_info('unix::uid,unix::gid', vfs.FOLLOW, None)
             if info.has_attribute('unix::uid'):
                 uid = info.get_attribute_uint32('unix::uid')
@@ -195,7 +195,7 @@ def _owner_group(path, st):
 
 
 def _apply_mode(path, mode):
-    if vfs.is_admin(path):
+    if vfs.is_uri(path):
         info = Gio.FileInfo()
         info.set_attribute_uint32('unix::mode', mode)
         vfs.gfile(path).set_attributes_from_info(info, vfs.FOLLOW, None)
@@ -394,7 +394,7 @@ def _read_metadata(path, kind):
     local = path
     tmp = None
     try:
-        if vfs.is_admin(path):
+        if vfs.is_uri(path):
             tmp, local = vfs.copy_to_temp(path)
         if kind == 'image':
             rows = _identify_rows(local)

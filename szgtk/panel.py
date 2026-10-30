@@ -567,7 +567,7 @@ class Panel(Gtk.Box):
         parts.box.set_tooltip_text(item.name)
         thumb = None
         if (self.win.conf['show_thumbs'] and self.mode == 'fs' and not item.is_dir
-                and not vfs.is_admin(item.full)):
+                and not vfs.is_uri(item.full)):
             thumb = self.thumbs.get((item.full, size))
         if thumb is not None:
             parts.pic.set_paintable(thumb)
@@ -717,7 +717,7 @@ class Panel(Gtk.Box):
     # ---------- миниатюры (запрашиваются, когда плитка попадает на экран) ----------
     def _thumb_want(self, item, size):
         if (not self.win.conf['show_thumbs'] or self.mode != 'fs' or item.is_dir or GdkPixbuf is None
-                or vfs.is_admin(item.full)):
+                or vfs.is_uri(item.full)):
             return
         key = (item.full, size)
         if key in self.thumbs or key in self._thumb_pending:
@@ -1000,7 +1000,7 @@ class Panel(Gtk.Box):
             if show_badges:
                 if is_link:
                     flags = FLAG_LINK
-                elif not vfs.is_admin(self.path):
+                elif not vfs.is_uri(self.path):
                     # в папке без прав на запись не помечаем замком каждый элемент:
                     # запрет записи показываем только внутри доступной папки
                     if parent_writable and not de.can_write:
@@ -1010,7 +1010,8 @@ class Panel(Gtk.Box):
             icon = (dir_icon(vfs.display(de.path)) if is_dir
                     else icon_for(name, False, de.path))
             rows.append((icon, name, is_dir, -1 if is_dir else de.size, -1,
-                         de.mtime, stat.filemode(de.mode), '', '', '', de.path, flags))
+                         de.mtime, '' if vfs.is_uri(de.path) else stat.filemode(de.mode),
+                         '', '', '', de.path, flags))
         return rows
 
     @staticmethod
@@ -1074,6 +1075,8 @@ class Panel(Gtk.Box):
             self._capture_view_state()
         if vfs.is_admin(path):
             return self.navigate_admin(path, push, select)
+        if vfs.is_uri(path):
+            return self.navigate_uri(path, push, select)
         path = os.path.abspath(os.path.expanduser(path))
         if not os.path.isdir(path):
             if os.path.lexists(path) and not os.access(path, os.R_OK | os.X_OK):
@@ -1097,8 +1100,14 @@ class Panel(Gtk.Box):
         if vfs.exists(uri):
             then()
             return True
-        self.set_message(_('Requesting root access…'))
-        op = Gio.MountOperation()
+        self.set_message(_('Requesting root access…') if vfs.is_admin(uri)
+                         else _('Connecting to server…'))
+        try:
+            # Gtk.MountOperation показывает диалог ввода логина и пароля;
+            # Gio.MountOperation молча завершается ошибкой аутентификации.
+            op = Gtk.MountOperation(parent=self.win)
+        except Exception:
+            op = Gio.MountOperation()
 
         def mounted(src, res):
             try:
@@ -1135,6 +1144,35 @@ class Panel(Gtk.Box):
 
         return self._admin_ready(uri, go)
 
+    def navigate_uri(self, path, push=True, select=None):
+        """Открыть сетевой URI напрямую через GIO.
+
+        GVfs не всегда создаёт для сервера (например, smb://host/) точку
+        монтирования в gvfs-fuse, поэтому полагаться на локальный путь нельзя:
+        каталог читается через GIO, как это делает Nautilus.
+        """
+        if push:
+            self._capture_view_state()
+        head, sep, rest = path.partition('://')
+        if sep and rest.count('/') > 1:
+            path = head + sep + rest.rstrip('/')
+        uri = path
+
+        def go():
+            if not vfs.is_dir(uri):
+                alert(self.win, _('Folder not found'), uri)
+                self.entry.set_text(self._display_loc())
+                return
+            self.leave_archive()
+            self.mode, self.path = 'fs', uri
+            self.entry.set_text(uri)
+            self._set_cols()
+            self.fill(self._fs_rows(), [select] if select else None)
+            if push:
+                self._push(('fs', uri))
+
+        return self._admin_ready(uri, go)
+
     def _display_loc(self):
         if self.mode == 'fs':
             return self.path
@@ -1143,7 +1181,7 @@ class Panel(Gtk.Box):
     def open_archive(self, path, push=True, sub='', parent_state=None, tmp=None, password=None, origin=None):
         if push and parent_state is None:
             self._capture_view_state()
-        if vfs.is_admin(path):
+        if vfs.is_uri(path):
             def start():
                 self.set_message(_('Opening…'))
 
@@ -1415,6 +1453,8 @@ class Panel(Gtk.Box):
     def go_up(self):
         if self.mode == 'fs':
             parent = vfs.dirname(self.path)
+            if vfs.is_remote(self.path) and parent and parent.rstrip('/').endswith(':'):
+                return
             if parent and parent != self.path:
                 # возвращаемся туда, где камера стояла до входа в папку
                 st = self._hist_state('fs', parent)
@@ -1434,7 +1474,7 @@ class Panel(Gtk.Box):
                 shutil.rmtree(a.tmp, ignore_errors=True)
             self.show_arc([os.path.basename(a.path)])
         else:
-            src = a.source if vfs.is_admin(a.source) else a.path
+            src = a.source if vfs.is_uri(a.source) else a.path
             parent = vfs.dirname(src)
             st = self._hist_state('fs', parent)
             self.navigate_fs(parent, select=vfs.basename(src))
@@ -1442,6 +1482,11 @@ class Panel(Gtk.Box):
                 self._restore_scroll(st.get('scroll', 0.0), st.get('upper'), st.get('page'))
 
     def go_root(self):
+        if vfs.is_remote(self.path):
+            head, _, rest = self.path.partition('://')
+            host = rest.split('/', 1)[0]
+            self.navigate_fs('%s://%s/' % (head, host))
+            return
         self.navigate_fs(vfs.ADMIN + '/' if vfs.is_admin(self.path) else '/')
 
     def navigate_text(self, text):
@@ -1452,6 +1497,10 @@ class Panel(Gtk.Box):
             else:
                 self.navigate_fs(raw)
                 self.focus_view()
+            return
+        if vfs.is_uri(raw):
+            self.navigate_fs(raw)
+            self.focus_view()
             return
         t = os.path.expanduser(raw)
         if not t:
@@ -1483,14 +1532,14 @@ class Panel(Gtk.Box):
     def activate_item(self, it):
         if self.mode == 'fs':
             if it.is_dir:
-                if not vfs.is_admin(it.full) and not IS_ROOT and not (
+                if not vfs.is_uri(it.full) and not IS_ROOT and not (
                         vfs.can_read(it.full) and vfs.can_exec(it.full)):
                     # Папка требует root: GVfs admin, polkit и то же окно.
                     self.win.op_open_as_root(target=it.full)
                 else:
                     self.navigate_fs(it.full)
             else:
-                target = it.full if vfs.is_admin(it.full) or vfs.can_read(it.full) else vfs.admin_uri(it.full)
+                target = it.full if vfs.is_uri(it.full) or vfs.can_read(it.full) else vfs.admin_uri(it.full)
                 if is_archive_name(it.name):
                     self.open_archive(target)
                 elif vfs.is_program(it.full):
@@ -1942,7 +1991,7 @@ class Panel(Gtk.Box):
                 return None
             self._tile_select_for_drag(parts, src.get_current_event_state())
         items = self.selected()
-        if not items or any(vfs.is_admin(i.full) for i in items):
+        if not items or any(vfs.is_uri(i.full) for i in items):
             return None
         paths = self.win.drag_paths(self, items)
         if not paths:
