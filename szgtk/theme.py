@@ -212,7 +212,9 @@ window.sz-midnight { background-color: $bg; color: $text; }
   { background: none; }
 .sz-midnight separator { background: $border; }
 .sz-midnight check, .sz-midnight radio { background: $surface; border: 1px solid $border; color: $text; }
-.sz-midnight check:checked, .sz-midnight radio:checked { background: $accent; border-color: $accent; color: #fff; }
+.sz-midnight check:checked, .sz-midnight check:indeterminate,
+.sz-midnight radio:checked, .sz-midnight radio:indeterminate
+  { background: $focus; border-color: $focus; color: #0E0E43; }
 .sz-midnight frame > border { border-color: $border; }
 .sz-midnight notebook > header, .sz-midnight notebook > header > tabs
   { background: $bg; border: none; box-shadow: none; }
@@ -245,7 +247,7 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight row:selected { background: $surface; color: $text; }
 .sz-midnight textview, .sz-midnight textview text { background: $bg; color: $text; }
 .sz-midnight progressbar trough { background: $surface; border: none; }
-.sz-midnight progressbar progress { background: $accent; border: none; }
+.sz-midnight progressbar progress { background: $focus; border: none; }
 .sz-midnight dropdown > button { background: $surface; border: 1px solid $border; }
 .sz-midnight popover.menu listview { background: transparent; }
 .sz-midnight .sz-statusbar { background: $surface; border-top: 1px solid $border; }
