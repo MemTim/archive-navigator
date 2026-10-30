@@ -396,10 +396,10 @@ class Panel(Gtk.Box):
         sc.connect('scroll', self._on_scroll)
         w.add_controller(sc)
         src = Gtk.DragSource()
-        src.set_actions(Gdk.DragAction.COPY)
+        src.set_actions(Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
         src.connect('prepare', self._on_drag_prepare)
         w.add_controller(src)
-        dt = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
+        dt = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
         dt.connect('enter', self._on_drop_enter)
         dt.connect('leave', self._on_drop_leave)
         dt.connect('drop', self._on_drop)
@@ -1944,5 +1944,23 @@ class Panel(Gtk.Box):
         paths = [f.get_path() for f in value.get_files() if f.get_path()]
         if not paths:
             return False
-        self.win.drop_files(self, paths)
+        move = False
+        if self.mode == 'fs':
+            try:
+                mods = target.get_current_event_state()
+            except Exception:
+                mods = 0
+            ctrl = bool(mods & Gdk.ModifierType.CONTROL_MASK)
+            shift = bool(mods & Gdk.ModifierType.SHIFT_MASK)
+            if shift:
+                move = True
+            elif not ctrl:
+                # Как в файловых менеджерах: в пределах одного устройства
+                # перетаскивание перемещает, между устройствами — копирует.
+                try:
+                    dev = os.stat(self.path).st_dev
+                    move = all(os.stat(p).st_dev == dev for p in paths)
+                except OSError:
+                    move = False
+        self.win.drop_files(self, paths, move)
         return True

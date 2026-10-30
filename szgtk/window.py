@@ -40,6 +40,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.passwords, self.temp_dirs, self.closing, self.rebuilding = {}, [], False, False
         self._active_archives = set()
         self.clipboard_data, self._clipboard_own = None, False
+        self._clip_serial = 0
         self.undo_stack, self.redo_stack, self._history_busy = [], [], False
         self._clipboard = self.get_clipboard()
         self._clip_sig = self._clipboard.connect('changed', self._on_clipboard_changed)
@@ -1484,12 +1485,14 @@ class MainWindow(Gtk.ApplicationWindow):
             return None
         return [os.path.join(tmp, i.full) for i in items if os.path.exists(os.path.join(tmp, i.full))]
 
-    def drop_files(self, panel, paths):
+    def drop_files(self, panel, paths, move=False):
         self.set_active(panel)
         if panel.mode == 'arc':
             self.add_into_archive(panel, paths)
-        elif not all(os.path.dirname(p.rstrip('/')) == panel.path for p in paths):
-            self.fs_transfer(paths, panel.path, False)
+            return
+        if all(os.path.dirname(p.rstrip('/')) == panel.path for p in paths):
+            return
+        self.fs_transfer(paths, panel.path, move)
 
     # ───────────── операции: открыть / просмотр ─────────────
     def op_open_archive_dialog(self, *a):
@@ -2160,9 +2163,66 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception:
             pass
 
-    def _on_clipboard_changed(self, _clip):
-        if not self._clipboard_own:
-            self.clipboard_data = None
+    def _on_clipboard_changed(self, clip):
+        if self._clipboard_own:
+            return
+        data = self.clipboard_data
+        if data is None:
+            return
+        # На Wayland сигнал 'changed' приходит асинхронно — иногда уже после
+        # того, как мы сняли _clipboard_own в idle. Содержимое при этом всё ещё
+        # наше, и состояние «вырезано» терять нельзя.
+        try:
+            if clip.is_local():
+                return
+        except Exception:
+            pass
+        self._verify_clipboard(data)
+
+    def _verify_clipboard(self, data):
+        """Отменить наше состояние, только если в буфере чужие данные.
+
+        Пустой буфер (например, после нашего же очищения) состояние не сбрасывает.
+        """
+        serial = self._clip_serial
+
+        def text_done(c, res, _u=None):
+            if serial != self._clip_serial or self.clipboard_data is not data:
+                return
+            try:
+                text = c.read_text_finish(res) or ''
+            except Exception:
+                text = ''
+            if text.strip():
+                self.clipboard_data = None
+
+        def files_done(c, res, _u=None):
+            if serial != self._clip_serial or self.clipboard_data is not data:
+                return
+            paths = []
+            try:
+                fl = c.read_value_finish(res)
+                if hasattr(fl, 'get_boxed'):
+                    fl = fl.get_boxed()
+                paths = [f.get_path() for f in fl.get_files() if f.get_path()]
+            except Exception:
+                paths = []
+            if paths:
+                if (data.get('kind') == 'fs' and
+                        set(paths) == set(data.get('paths') or ())):
+                    return                      # тот же набор файлов — это мы
+                self.clipboard_data = None
+                return
+            try:
+                c.read_text_async(None, text_done, None)
+            except Exception:
+                pass
+
+        try:
+            self.get_clipboard().read_value_async(
+                Gdk.FileList, GLib.PRIORITY_DEFAULT, None, files_done, None)
+        except Exception:
+            pass
 
     def _own_clipboard(self):
         self._clipboard_own = True
@@ -2195,6 +2255,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _clear_clipboard(self, data=None):
         if data is not None and self.clipboard_data is not data:
             return
+        self._clip_serial += 1
         self.clipboard_data = None
         self._clear_system_clipboard()
 
@@ -2203,6 +2264,7 @@ class MainWindow(Gtk.ApplicationWindow):
         sel = p.selected()
         if not sel:
             return
+        self._clip_serial += 1
         if p.mode == 'arc':
             a = p.arc
             if cut and a.parent is not None:
