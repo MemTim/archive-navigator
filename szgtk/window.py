@@ -243,6 +243,7 @@ class MainWindow(Gtk.ApplicationWindow):
         A('two-panels', self.op_two_panels, state=False)
         A('menu-bar', self.op_menu_bar, state=True)
         A('toolbar', self.op_toolbar, state=True)
+        A('panels-button', self.op_panels_button, state=not bool(self.conf.get('hide_panels_button')))
         A('hidden', self.op_hidden, state=False)
         A('root', lambda *a: self.active.go_root())
         A('up', lambda *a: self.active.go_up())
@@ -341,6 +342,8 @@ class MainWindow(Gtk.ApplicationWindow):
     def open_top_panels_menu(self, button):
         hm = bool(self.conf.get('hide_menu_bar'))
         ht = bool(self.conf.get('hide_toolbar'))
+        hs = bool(self.conf.get('hide_sidebar'))
+        hb = bool(self.conf.get('hide_panels_button'))
         pop = Gtk.Popover()
         pop.add_css_class('sz-panels-popover')
         pop.set_has_arrow(False)
@@ -354,6 +357,8 @@ class MainWindow(Gtk.ApplicationWindow):
         title.add_css_class('sz-panels-title')
         sub = lbl(self.top_panels_status())
         sub.add_css_class('sz-panels-sub')
+        sub.set_wrap(True)
+        sub.set_max_width_chars(38)
         head.append(title)
         head.append(sub)
         box.append(head)
@@ -393,6 +398,13 @@ class MainWindow(Gtk.ApplicationWindow):
             lambda: self.set_top_panels(hide_menu=not hm), checked=not hm)
         add(None, _('Show action panel') if ht else _('Hide action panel'), None,
             lambda: self.set_top_panels(hide_toolbar=not ht), checked=not ht)
+        if self.sidebar is not None:
+            add(None, _('Show sidebar') if hs else _('Hide sidebar'),
+                _('Places, favorites and devices') if not hs else None,
+                lambda: self.set_top_panels(hide_sidebar=not hs), checked=not hs)
+        add(None, _('Show “Panels” button') if hb else _('Hide “Panels” button'),
+            _('You can restore it later from View → Panels button') if not hb and not hm else None,
+            lambda: self.set_top_panels(hide_panels_button=not hb), checked=not hb)
         sep = Gtk.Separator()
         sep.add_css_class('sz-panels-sep')
         box.append(sep)
@@ -630,6 +642,7 @@ class MainWindow(Gtk.ApplicationWindow):
         s.append(_('Action panel'), 'win.toolbar')
         if self.design == 'nav':
             s.append(_('Sidebar'), 'win.toggle-sidebar')
+        s.append(_('Panels button'), 'win.panels-button')
         s.append(_('Search'), 'win.search')
         s.append(_('Show hidden files'), 'win.hidden')
         v.append_section(None, s)
@@ -2888,48 +2901,114 @@ class MainWindow(Gtk.ApplicationWindow):
     def top_panels_status(self):
         hm = bool(self.conf.get('hide_menu_bar'))
         ht = bool(self.conf.get('hide_toolbar'))
+        hs = bool(self.conf.get('hide_sidebar'))
+        hb = bool(self.conf.get('hide_panels_button'))
         if hm and ht:
-            return _('Both panels are hidden')
-        if hm:
-            return _('Menu bar is hidden')
-        if ht:
-            return _('Action panel is hidden')
-        return _('Both panels are visible')
+            status = _('Both panels are hidden')
+        elif hm:
+            status = _('Menu bar is hidden')
+        elif ht:
+            status = _('Action panel is hidden')
+        else:
+            status = _('Both panels are visible')
+        extra = []
+        if hs:
+            extra.append(_('Sidebar is hidden'))
+        if hb:
+            extra.append(_('“Panels” button is hidden'))
+        if extra:
+            status += ' · ' + ' · '.join(extra)
+        return status
 
     def apply_top_panels(self):
         hm = bool(self.conf.get('hide_menu_bar'))
         ht = bool(self.conf.get('hide_toolbar'))
+        hs = bool(self.conf.get('hide_sidebar'))
+        hb = bool(self.conf.get('hide_panels_button'))
         if hasattr(self, 'menubar'):
             self.menubar.set_visible(not hm)
         if hasattr(self, 'toolbar'):
             self.toolbar.set_visible(not ht)
             # подписи прячем до пересчёта минимума, иначе панель «растянет» окно
             self._sync_toolbar_labels()
-        for name, hidden in (('menu-bar', hm), ('toolbar', ht)):
+        if self.sidebar is not None:
+            self.sidebar.set_visible(not hs)
+        for name, hidden in (('menu-bar', hm), ('toolbar', ht), ('panels-button', hb)):
             act = self.lookup_action(name)
             if act is not None:
                 act.set_state(GLib.Variant.new_boolean(not hidden))
         status = self.top_panels_status()
         for p in (getattr(self, 'p1', None), getattr(self, 'p2', None)):
             if p is not None and hasattr(p, 'btn_panels'):
+                p.btn_panels.set_visible(not hb)
                 p.btn_panels.set_tooltip_text(_('Top panels') + ': ' + status)
 
-    def set_top_panels(self, hide_menu=None, hide_toolbar=None, show_all=False, persist=True):
+    def set_top_panels(self, hide_menu=None, hide_toolbar=None, hide_sidebar=None,
+                       hide_panels_button=None, show_all=False, persist=True):
+        """Изменить видимость верхних панелей, боковой панели и кнопки «Панели»."""
+        hm = bool(self.conf.get('hide_menu_bar'))
+        ht = bool(self.conf.get('hide_toolbar'))
+        hs = bool(self.conf.get('hide_sidebar'))
+        hb = bool(self.conf.get('hide_panels_button'))
         if show_all:
             hide_menu = hide_toolbar = False
-        if hide_menu is not None:
-            self.conf['hide_menu_bar'] = bool(hide_menu)
-        if hide_toolbar is not None:
-            self.conf['hide_toolbar'] = bool(hide_toolbar)
+        new_m = hm if hide_menu is None else bool(hide_menu)
+        new_t = ht if hide_toolbar is None else bool(hide_toolbar)
+        new_s = hs if hide_sidebar is None else bool(hide_sidebar)
+        new_b = hb if hide_panels_button is None else bool(hide_panels_button)
+
+        def apply():
+            self._apply_top_panels_values(new_m, new_t, new_s, new_b, persist)
+
+        # Меню и кнопка «Панели» — единственные пути в настройки без горячих клавиш.
+        if new_m and new_b and not (hm and hb):
+            self._confirm_last_settings_route(hm, hb, apply)
+            return False
+        apply()
+        return True
+
+    def _apply_top_panels_values(self, hide_menu, hide_toolbar, hide_sidebar,
+                                 hide_panels_button, persist=True):
+        self.conf['hide_menu_bar'] = bool(hide_menu)
+        self.conf['hide_toolbar'] = bool(hide_toolbar)
+        self.conf['hide_sidebar'] = bool(hide_sidebar)
+        self.conf['hide_panels_button'] = bool(hide_panels_button)
         self.apply_top_panels()
         if persist:
             self.conf.save()
 
+    def _confirm_last_settings_route(self, menu_hidden, button_hidden, on_ok):
+        """Предупредить, если скрывается последний путь в настройки через интерфейс."""
+        hotkey = self.accel_text('settings')
+        if button_hidden and not menu_hidden:
+            head = _('The “Panels” button will be hidden, and the menu bar is already hidden.')
+        elif menu_hidden and not button_hidden:
+            head = _('The menu bar will be hidden, and the “Panels” button is already hidden.')
+        else:
+            head = _('The menu bar and the “Panels” button will be hidden.')
+        if not hotkey:
+            alert(self, _('No way left to open Settings'),
+                  head + '\n\n' + _('Settings has no hotkey assigned. Assign one first, '
+                                    'otherwise the settings will be impossible to open.'))
+            return False
+        detail = (head + '\n\n' +
+                  _('This is the last way to open Settings without hotkeys. '
+                    'To open Settings, press {0}.').format(hotkey) + '\n\n' +
+                  _('There you can bring the panels and the “Panels” button back.'))
+        choose(self, _('The last way to open Settings will be hidden'),
+               [_('Cancel'), _('Hide anyway')],
+               lambda i: on_ok() if i == 1 else None,
+               detail=detail, default=0, cancel=0)
+        return False
+
     def op_menu_bar(self, action, param):
-        self.set_top_panels(hide_menu=not self._toggle(action))
+        self.set_top_panels(hide_menu=not bool(self.conf.get('hide_menu_bar')))
 
     def op_toolbar(self, action, param):
-        self.set_top_panels(hide_toolbar=not self._toggle(action))
+        self.set_top_panels(hide_toolbar=not bool(self.conf.get('hide_toolbar')))
+
+    def op_panels_button(self, action, param):
+        self.set_top_panels(hide_panels_button=not bool(self.conf.get('hide_panels_button')))
 
     def op_hidden(self, action, param):
         self.conf['show_hidden'] = self._toggle(action)
@@ -3043,7 +3122,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def op_toggle_sidebar(self, *a):
         if self.sidebar is not None:
-            self.sidebar.set_visible(not self.sidebar.get_visible())
+            self.set_top_panels(hide_sidebar=not bool(self.conf.get('hide_sidebar')))
 
     def op_search(self, *a):
         self.searchbar.set_search_mode(not self.searchbar.get_search_mode())

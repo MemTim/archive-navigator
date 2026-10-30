@@ -108,8 +108,40 @@ RU.update({
     'Interface settings…': 'Настройки интерфейса…',
     'Both panels are hidden': 'Обе панели скрыты', 'Menu bar is hidden': 'Строка меню скрыта',
     'Action panel is hidden': 'Панель действий скрыта', 'Both panels are visible': 'Обе панели видны',
+    'Sidebar is hidden': 'Боковая панель скрыта',
+    '“Panels” button is hidden': 'Кнопка «Панели» скрыта',
+    'Show sidebar': 'Показать боковую панель', 'Hide sidebar': 'Скрыть боковую панель',
+    'Show “Panels” button': 'Показать кнопку «Панели»',
+    'Hide “Panels” button': 'Скрыть кнопку «Панели»', 'Panels button': 'Кнопка «Панели»',
+    'Places, favorites and devices': 'Места, избранное и устройства',
+    'You can restore it later from View → Panels button':
+        'Вернуть её можно через «Просмотр → Кнопка „Панели“»',
+    'Available in the Navigation design: places, favorites and devices.':
+        'Доступно в дизайне «Навигационный»: места, избранное и устройства.',
+    'The button in the address bar that opens the panel menu.':
+        'Кнопка в строке адреса, которая открывает меню панелей.',
+    'Sidebar and navigation': 'Боковая панель и навигация',
+    'The last way to open Settings will be hidden': 'Последний способ открыть настройки будет скрыт',
+    'The “Panels” button will be hidden, and the menu bar is already hidden.':
+        'Кнопка «Панели» будет скрыта, а строка меню уже скрыта.',
+    'The menu bar will be hidden, and the “Panels” button is already hidden.':
+        'Строка меню будет скрыта, а кнопка «Панели» уже скрыта.',
+    'The menu bar and the “Panels” button will be hidden.':
+        'Строка меню и кнопка «Панели» будут скрыты.',
+    'No way left to open Settings': 'Больше не останется способа открыть настройки',
+    'Settings has no hotkey assigned. Assign one first, otherwise the settings will be impossible to open.':
+        'Для настроек не назначена горячая клавиша. Сначала назначьте её, иначе открыть настройки будет невозможно.',
+    'This is the last way to open Settings without hotkeys. To open Settings, press {0}.':
+        'Это последний способ открыть настройки без горячих клавиш. Чтобы открыть настройки, нажмите {0}.',
+    'There you can bring the panels and the “Panels” button back.':
+        'Там можно вернуть панели и кнопку «Панели».',
+    'Hide anyway': 'Всё равно скрыть',
+    'You can bring the panels back with the “Panels” button in the navigation bar. If you hide that button together with the menu bar, open Settings with {0} — there you can turn everything back on.':
+        'Вернуть панели можно кнопкой «Панели» в строке навигации. Если скрыть эту кнопку вместе со строкой меню, откройте настройки сочетанием {0} — там всё можно включить обратно.',
+    'You can bring the panels back with the “Panels” button in the navigation bar. If you hide that button together with the menu bar, Settings can only be opened with a hotkey — assign one on the Hotkeys page first.':
+        'Вернуть панели можно кнопкой «Панели» в строке навигации. Если скрыть эту кнопку вместе со строкой меню, настройки можно будет открыть только горячей клавишей — сначала назначьте её на вкладке «Горячие клавиши».',
     'You can bring the panels back with the “Panels” button in the navigation bar. It is always available.':
-        'Вернуть панели можно кнопкой «Панели» в строке навигации. Она всегда доступна.',
+        'Вернуть панели можно кнопкой «Панели» в строке навигации.',
     'Sort by': 'Сортировка', 'Open root folder': 'Открыть корневую папку', 'Folders history…': 'История папок…',
     'Refresh': 'Обновить', 'Add folder to Favorites as': 'Добавить папку в избранное как',
     'Favorites': 'Избранное', 'Options…': 'Настройки…', 'Delete temporary files': 'Удалить временные файлы',

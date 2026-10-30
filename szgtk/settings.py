@@ -695,6 +695,23 @@ class SettingsDialog(DlgBase):
         self.sw_top.set_active(hide_menu or hide_toolbar)
         self._sync_top_panels()
         top.append(self._top_panels_info())
+        sep = Gtk.Separator()
+        top.append(sep)
+        other = lbl(_('Sidebar and navigation'))
+        other.add_css_class('sz-title')
+        top.append(other)
+        extras = vbox(2)
+        self.c_hide_sidebar = Gtk.CheckButton(label=_('Hide sidebar'))
+        self.c_hide_sidebar.set_active(bool(c.get('hide_sidebar')))
+        self.c_hide_sidebar.set_tooltip_text(
+            _('Available in the Navigation design: places, favorites and devices.'))
+        extras.append(self.c_hide_sidebar)
+        self.c_hide_panels_button = Gtk.CheckButton(label=_('Hide “Panels” button'))
+        self.c_hide_panels_button.set_active(bool(c.get('hide_panels_button')))
+        self.c_hide_panels_button.set_tooltip_text(
+            _('The button in the address bar that opens the panel menu.'))
+        extras.append(self.c_hide_panels_button)
+        top.append(extras)
         pg.append(top)
         pg.append(title(_('File size')))
         g = Gtk.Grid(row_spacing=8, column_spacing=12)
@@ -826,8 +843,16 @@ class SettingsDialog(DlgBase):
         btn.append(lbl(_('Panels')))
         btn.append(chevron)
         btn.set_valign(Gtk.Align.CENTER)
-        text = lbl(_('You can bring the panels back with the “Panels” button in the navigation bar. '
-                     'It is always available.'))
+        hotkey = accel_label(self.accels.get('settings') or '')
+        if hotkey:
+            text = _('You can bring the panels back with the “Panels” button in the navigation bar. '
+                     'If you hide that button together with the menu bar, open Settings with {0} — '
+                     'there you can turn everything back on.').format(hotkey)
+        else:
+            text = _('You can bring the panels back with the “Panels” button in the navigation bar. '
+                     'If you hide that button together with the menu bar, Settings can only be opened '
+                     'with a hotkey — assign one on the Hotkeys page first.')
+        text = lbl(text)
         text.set_wrap(True)
         text.set_hexpand(True)
         row.append(btn)
@@ -1217,6 +1242,8 @@ class SettingsDialog(DlgBase):
             c['hide_toolbar'] = mode in ('toolbar', 'both')
         else:
             c['hide_menu_bar'] = c['hide_toolbar'] = False
+        c['hide_sidebar'] = self.c_hide_sidebar.get_active()
+        c['hide_panels_button'] = self.c_hide_panels_button.get_active()
         c['typeahead'] = self.c_ta.get_active()
         c['typeahead_timeout'] = int(self.sp_ta.get_value())
         c['view_mode'] = VIEW_MODES[self.dd_view.get_selected()][0]

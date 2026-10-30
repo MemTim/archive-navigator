@@ -8,6 +8,7 @@ class Config(dict):
         'favorites': {}, 'show_hidden': False, 'grid': False, 'single_click': False,
         'confirm_delete': True, 'use_trash': True, 'two_panels': False,
         'hide_menu_bar': False, 'hide_toolbar': False,
+        'hide_sidebar': False, 'hide_panels_button': False,
         'editor': '', 'viewer': '', 'width': 1100, 'height': 700,
         'last_dir': '', 'add_format': '7z', 'add_level': 5,
         # оформление
