@@ -294,6 +294,8 @@ class ProgressDialog(DlgBase):
         self.set_titlebar(header)
         self.job = job
         self._alive = True
+        self._hidden_sidebar = False
+        self._sidebar_ref = None
         self._samples = []
         self._rate = None
         self._eta = None
@@ -380,6 +382,13 @@ class ProgressDialog(DlgBase):
         self.pause_btn.connect('clicked', self._toggle_pause)
         self.pause_btn.set_visible(bool(job.pausable))
         footer.append(self.pause_btn)
+        self.hide_btn = Gtk.Button(label=_('Hide'))
+        self.hide_btn.add_css_class('sz-prog-hide')
+        self.hide_btn.set_tooltip_text(
+            _('Hide the window and show progress in the sidebar'))
+        self.hide_btn.set_visible(self._sidebar_visible())
+        self.hide_btn.connect('clicked', lambda b: self.hide_to_sidebar())
+        footer.append(self.hide_btn)
         root.append(footer)
 
         self.connect('close-request', self._on_close)
@@ -389,6 +398,12 @@ class ProgressDialog(DlgBase):
         GLib.timeout_add(250, self._delayed_present)
 
     def _on_destroy(self, *a):
+        if self._hidden_sidebar:
+            sidebar = self._sidebar()
+            if sidebar is not None:
+                sidebar.remove_job_dialog(self)
+            self._hidden_sidebar = False
+        self._sidebar_ref = None
         self._alive = False
 
     def _on_close(self, w):
@@ -396,9 +411,61 @@ class ProgressDialog(DlgBase):
         return True
 
     def _delayed_present(self):
-        if self._alive:
+        if self._alive and not self._hidden_sidebar:
             self.present()
         return False
+
+    def _sidebar(self):
+        ref = getattr(self, '_sidebar_ref', None)
+        if ref is not None:
+            return ref
+        parent = self.get_transient_for()
+        sidebar = getattr(parent, 'sidebar', None)
+        return sidebar if hasattr(sidebar, 'add_job_dialog') else None
+
+    def _sidebar_visible(self):
+        sidebar = self._sidebar()
+        return sidebar is not None and sidebar.get_visible()
+
+    def hide_to_sidebar(self):
+        """Скрыть окно и показать круговой индикатор в боковой панели."""
+        if not self._alive or self._hidden_sidebar:
+            return
+        if not self._sidebar_visible():
+            return
+        sidebar = self._sidebar()
+        self._hidden_sidebar = True
+        self._sidebar_ref = sidebar
+        sidebar.add_job_dialog(self)
+        self.hide()
+
+    def show_full(self):
+        """Вернуть скрытое окно прогресса на экран."""
+        if not self._alive:
+            return
+        sidebar = self._sidebar()
+        if sidebar is not None:
+            sidebar.remove_job_dialog(self)
+        self._hidden_sidebar = False
+        self._sidebar_ref = None
+        self.present()
+
+    def progress_snapshot(self):
+        """Данные для индикатора в боковой панели."""
+        return dict(
+            alive=self._alive,
+            title=self.get_title() or '',
+            text=self.name.get_text(),
+            sub=self.sub.get_text(),
+            pct=self.pct.get_text(),
+            eta=self.eta.get_text(),
+            bytes=self.bytes.get_text() if self.bytesrow.get_visible() else '',
+            speed=self.speed.get_text(),
+            files=self.files.get_text() if self.files.get_visible() else '',
+            fraction=self.job.fraction,
+            cancelled=self.job.cancelled,
+            paused=self.job.paused,
+        )
 
     def _sync_icon(self):
         icon = self.job.icon or 'text-x-generic-symbolic'
@@ -490,6 +557,12 @@ class ProgressDialog(DlgBase):
         if not self._alive:
             return
         self._alive = False
+        if self._hidden_sidebar:
+            sidebar = self._sidebar()
+            if sidebar is not None:
+                sidebar.remove_job_dialog(self)
+            self._hidden_sidebar = False
+        self._sidebar_ref = None
         self.destroy()
 
 

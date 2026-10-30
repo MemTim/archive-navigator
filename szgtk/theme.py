@@ -53,6 +53,16 @@ BASE_CSS = """
   background: transparent; border: none; box-shadow: none; }
 .sz-side-edit:hover { background: alpha(currentColor, 0.10); }
 .sz-side-edit.sz-side-edit-on { background: alpha(currentColor, 0.16); }
+.sz-side-job { color: @theme_selected_bg_color; }
+.sz-job-pop { padding: 10px; }
+.sz-job-title { font-weight: 700; }
+.sz-job-file { opacity: 0.65; }
+.sz-job-info { font-size: 90%; opacity: 0.8; }
+.sz-job-bar { min-height: 6px; }
+.sz-job-sep { margin: 6px 0; }
+.sz-job-stop { padding: 4px 12px; min-height: 0; }
+.sz-job-show { padding: 4px 12px; min-height: 0; }
+.sz-prog-hide { padding: 4px 12px; min-height: 0; }
 .sz-menu-hidden .sz-side-group-label { opacity: 0.35; }
 .sz-usercard { padding: 10px 12px; border-radius: 8px; margin: 8px; }
 .sz-hdr { padding: 6px 10px; }
@@ -299,6 +309,15 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-side-active { background: $surface; box-shadow: inset 3px 0 $focus; }
 .sz-midnight .sz-side-device-row.sz-side-active { background: $surface; box-shadow: none; }
 .sz-midnight .sz-side-device-row.sz-side-active .sz-side-bar { box-shadow: inset 3px 0 $focus; }
+.sz-midnight .sz-side-job { color: $focus; }
+.sz-midnight .sz-job-bar trough { background: $surface; border: none; }
+.sz-midnight .sz-job-bar progress { background: $focus; border: none; }
+.sz-midnight .sz-job-stop { background: transparent; border: 1px solid $surface; color: $text; }
+.sz-midnight .sz-job-stop:hover { background: $surface; }
+.sz-midnight .sz-job-show { background: $surface; border: 1px solid $surface; color: $text; }
+.sz-midnight .sz-job-show:hover { background: $border; }
+.sz-midnight .sz-prog-hide { background: transparent; border: 1px solid $surface; color: $text; }
+.sz-midnight .sz-prog-hide:hover { background: $surface; }
 .sz-midnight .sz-hdr { background: $bg; border-bottom: 1px solid $border; }
 .sz-midnight .sz-foot { background: $bg; border-top: 1px solid $border; }
 .sz-midnight paned > separator { background: $border; min-width: 1px; min-height: 1px; }

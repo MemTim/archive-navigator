@@ -158,6 +158,10 @@ RU.update({
     '{0} of {1}': '{0} из {1}', 'Remaining {0}': 'Осталось {0}',
     '{0} h {1} min': '{0} ч {1} мин', '{0} min {1} s': '{0} мин {1} с', '{0} s': '{0} с',
     'Pause': 'Пауза', 'Resume': 'Продолжить', 'Paused': 'Пауза',
+    'Operation in progress': 'Идёт операция',
+    'Hide the window and show progress in the sidebar':
+        'Скрыть окно и показывать прогресс в боковой панели',
+    'Show window': 'Показать окно', 'Speed': 'Скорость',
     'Add': 'Добавить', 'Extract': 'Извлечь', 'Test': 'Тест', 'Move': 'Переместить', 'Info': 'Информация',
     'Open': 'Открыть', 'Open with…': 'Открыть с помощью…', 'Run': 'Запустить',
     'Choose an application to open the file:': 'Выберите программу для открытия файла:',

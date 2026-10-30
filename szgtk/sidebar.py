@@ -120,6 +120,30 @@ def _volume_monitor():
     return Gio.VolumeMonitor.get()
 
 
+def _sidebar_job_ring(area, cr, w, h):
+    """Круговой индикатор фоновой операции вместо карандаша."""
+    c = area.get_color()
+    cx, cy = w / 2.0, h / 2.0
+    r = max(3.0, min(w, h) / 2.0 - 2.0)
+    width = max(2.0, r * 0.34)
+    cr.set_line_width(width)
+    cr.set_line_cap(1)  # round
+    # Дорожка.
+    cr.set_source_rgba(c.red, c.green, c.blue, 0.22)
+    cr.arc(cx, cy, r, 0, 2 * math.pi)
+    cr.stroke()
+    # Заполнение: дуга прогресса или вращающийся сегмент.
+    cr.set_source_rgba(c.red, c.green, c.blue, c.alpha)
+    f = getattr(area, 'fraction', None)
+    if f is None:
+        a0 = getattr(area, 'rotation', 0.0)
+        cr.arc(cx, cy, r, a0, a0 + 1.7)
+    else:
+        f = max(0.0, min(1.0, f))
+        cr.arc(cx, cy, r, -math.pi / 2, -math.pi / 2 + 2 * math.pi * f)
+    cr.stroke()
+
+
 def _sidebar_pencil(area, cr, w, h):
     """Карандаш из Vector 8.svg, перекрашенный в текущий цвет темы."""
     c = area.get_color()
@@ -225,8 +249,28 @@ class Sidebar(Gtk.Box):
         self.edit_btn.set_valign(Gtk.Align.CENTER)
         self.edit_btn.set_child(_drawing(18, 18, _sidebar_pencil, 'sz-side-edit-icon'))
         self.edit_btn.connect('clicked', self._toggle_edit)
+        self.job_dialogs = []
+        self._job_timer = 0
+        self._job_popup = None
+        self.job_area = _drawing(20, 20, _sidebar_job_ring, 'sz-side-job')
+        self.job_area.fraction = None
+        self.job_area.rotation = -math.pi / 2
+        self.job_btn = Gtk.Button()
+        self.job_btn.add_css_class('flat')
+        self.job_btn.add_css_class('sz-side-edit')
+        self.job_btn.add_css_class('sz-side-job-btn')
+        self.job_btn.set_focus_on_click(False)
+        self.job_btn.set_valign(Gtk.Align.CENTER)
+        self.job_btn.set_child(self.job_area)
+        self.job_btn.set_tooltip_text(_('Operation in progress'))
+        self.job_btn.connect('clicked', self._open_job_popup)
+        self.corner = Gtk.Stack()
+        self.corner.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.corner.set_transition_duration(120)
+        self.corner.add_named(self.edit_btn, 'edit')
+        self.corner.add_named(self.job_btn, 'job')
         card.append(info)
-        card.append(self.edit_btn)
+        card.append(self.corner)
         self.append(card)
         self._sync_edit_btn()
         self.rebuild()
@@ -242,6 +286,185 @@ class Sidebar(Gtk.Box):
         self.editing = not self.editing
         self._sync_edit_btn()
         self.rebuild()
+
+    # ───────── индикатор фоновых операций ─────────
+    def add_job_dialog(self, dlg):
+        if dlg not in self.job_dialogs:
+            self.job_dialogs.append(dlg)
+        self._sync_job_indicator()
+
+    def remove_job_dialog(self, dlg):
+        if dlg in self.job_dialogs:
+            self.job_dialogs.remove(dlg)
+        self._sync_job_indicator()
+
+    def _sync_job_indicator(self):
+        active = bool(self.job_dialogs)
+        had_popup = self._job_popup is not None
+        self.corner.set_visible_child_name('job' if active else 'edit')
+        if active and not self._job_timer:
+            self._job_timer = GLib.timeout_add(100, self._job_tick)
+        elif not active and self._job_timer:
+            GLib.source_remove(self._job_timer)
+            self._job_timer = 0
+        if active:
+            self._job_tick()
+            if had_popup:
+                self._close_job_popup()
+                self._open_job_popup()
+        else:
+            self._close_job_popup()
+
+    def _job_tick(self):
+        if not self._alive or not self.job_dialogs:
+            self._job_timer = 0
+            if self._alive and self.corner.get_visible_child_name() != 'edit':
+                self.corner.set_visible_child_name('edit')
+            return False
+        dlg = self.job_dialogs[-1]
+        f = dlg.job.fraction
+        if f is None:
+            self.job_area.rotation = ((getattr(self.job_area, 'rotation', 0.0) + 0.18)
+                                      % (2 * math.pi))
+        self.job_area.fraction = f
+        self.job_area.queue_draw()
+        snap = dlg.progress_snapshot()
+        tip = snap['title'] or _('Operation in progress')
+        if snap['pct']:
+            tip += ' · ' + snap['pct']
+        if len(self.job_dialogs) > 1:
+            tip += ' · %d' % len(self.job_dialogs)
+        self.job_btn.set_tooltip_text(tip)
+        self._update_job_popup()
+        return True
+
+    def _job_popup_row(self, dlg, first):
+        if not first:
+            sep = Gtk.Separator()
+            sep.add_css_class('sz-job-sep')
+            return sep
+        return None
+
+    def _open_job_popup(self, *a):
+        if not self.job_dialogs:
+            return
+        if self._job_popup is not None:
+            pop = self._job_popup['pop']
+            was_visible = pop.get_visible()
+            self._close_job_popup()
+            if was_visible:
+                return
+        pop = Gtk.Popover()
+        pop.add_css_class('sz-job-popover')
+        pop.set_has_arrow(True)
+        box = vbox(9)
+        box.add_css_class('sz-job-pop')
+        box.set_size_request(340, -1)
+        sections = []
+        for i, dlg in enumerate(self.job_dialogs):
+            sep = self._job_popup_row(dlg, i == 0)
+            if sep is not None:
+                box.append(sep)
+            title = lbl('')
+            title.add_css_class('sz-job-title')
+            file_l = lbl('')
+            file_l.add_css_class('sz-job-file')
+            file_l.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+            file_l.set_max_width_chars(48)
+            bar = Gtk.ProgressBar()
+            bar.add_css_class('sz-job-bar')
+            bar.set_show_text(False)
+            info = hbox(10)
+            pct = lbl('')
+            pct.add_css_class('sz-job-info')
+            pct.set_hexpand(True)
+            eta = lbl('', xalign=1.0)
+            eta.add_css_class('sz-job-info')
+            info.append(pct)
+            info.append(eta)
+            size = lbl('')
+            size.add_css_class('sz-job-info')
+            speed = lbl('')
+            speed.add_css_class('sz-job-info')
+            files = lbl('')
+            files.add_css_class('sz-job-info')
+            btns = hbox(6)
+            btns.set_halign(Gtk.Align.END)
+            stop = Gtk.Button(label=_('Stop'))
+            stop.add_css_class('sz-job-stop')
+            stop.connect('clicked', lambda b, d=dlg: d.job.cancel())
+            show = Gtk.Button()
+            show.add_css_class('sz-job-show')
+            shb = hbox(6)
+            shb.append(Gtk.Image.new_from_icon_name('window-new-symbolic'))
+            shb.append(lbl(_('Show window')))
+            show.set_child(shb)
+            show.connect('clicked', lambda b, d=dlg: self._show_job(d))
+            btns.append(stop)
+            btns.append(show)
+            for w in (title, file_l, bar, info, size, speed, files, btns):
+                box.append(w)
+            sections.append(dict(dlg=dlg, title=title, file=file_l, bar=bar, pct=pct,
+                                 eta=eta, size=size, speed=speed, files=files,
+                                 stop=stop, show=show))
+        pop.set_child(box)
+        pop.set_parent(self.job_btn)
+        pop.connect('closed', self._on_job_popup_closed)
+        self._job_popup = dict(pop=pop, sections=sections)
+        self._update_job_popup()
+        pop.popup()
+
+    def _on_job_popup_closed(self, pop):
+        if self._job_popup is not None and self._job_popup['pop'] is pop:
+            self._job_popup = None
+        if pop.get_parent() is not None:
+            pop.unparent()
+
+    def _close_job_popup(self):
+        item, self._job_popup = self._job_popup, None
+        if item is None:
+            return
+        pop = item['pop']
+        if pop.get_visible():
+            pop.popdown()
+        if pop.get_parent() is not None:
+            pop.unparent()
+
+    def _show_job(self, dlg):
+        self._close_job_popup()
+        dlg.show_full()
+
+    def _update_job_popup(self):
+        item = self._job_popup
+        if item is None:
+            return
+        for sec in item['sections']:
+            dlg = sec['dlg']
+            snap = dlg.progress_snapshot()
+            if not snap['alive']:
+                continue
+            sec['title'].set_text(snap['title'])
+            sec['file'].set_text(snap['text'] or snap['sub'])
+            f = snap['fraction']
+            if f is None:
+                sec['bar'].pulse()
+            else:
+                sec['bar'].set_fraction(max(0.0, min(1.0, f)))
+            pct = _('Paused') if snap['paused'] else snap['pct']
+            sec['pct'].set_text(pct or '')
+            sec['eta'].set_text('' if snap['paused'] else snap['eta'])
+            for key, label, text in (
+                    ('size', sec['size'], snap['bytes']),
+                    ('speed', sec['speed'], snap['speed']),
+                    ('files', sec['files'], snap['files'])):
+                label.set_visible(bool(text))
+                if key == 'size':
+                    label.set_text(_('Size') + ': ' + text)
+                elif key == 'speed':
+                    label.set_text(_('Speed') + ': ' + text)
+                else:
+                    label.set_text(text)
+            sec['stop'].set_sensitive(not snap['cancelled'])
 
     def _group_header(self, group_id):
         hidden = group_id in self.hidden
@@ -592,6 +815,11 @@ class Sidebar(Gtk.Box):
     def disconnect_monitor(self):
         """Отписаться от VolumeMonitor при закрытии окна."""
         self._alive = False
+        if self._job_timer:
+            GLib.source_remove(self._job_timer)
+            self._job_timer = 0
+        self._close_job_popup()
+        self.job_dialogs = []
         if self._devices_id:
             GLib.source_remove(self._devices_id)
             self._devices_id = 0
