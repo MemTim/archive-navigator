@@ -1007,7 +1007,8 @@ class Panel(Gtk.Box):
                         flags |= FLAG_NOWRITE
                     if not de.can_read:
                         flags |= FLAG_NOREAD
-            icon = (dir_icon(vfs.display(de.path)) if is_dir
+            icon = (de.icon if de.icon is not None else
+                    dir_icon(vfs.display(de.path)) if is_dir
                     else icon_for(name, False, de.path))
             rows.append((icon, name, is_dir, -1 if is_dir else de.size, -1,
                          de.mtime, '' if vfs.is_uri(de.path) else stat.filemode(de.mode),
@@ -1106,6 +1107,12 @@ class Panel(Gtk.Box):
             # Gtk.MountOperation показывает диалог ввода логина и пароля;
             # Gio.MountOperation молча завершается ошибкой аутентификации.
             op = Gtk.MountOperation(parent=self.win)
+            if not vfs.is_admin(uri):
+                # Без имени пользователя GVfs уходит в анонимный вход, и
+                # защищённый ресурс молча открывается пустым. Указываем
+                # пользователя из адреса либо локальную учётку — сохранённый
+                # в связке ключей пароль подставится автоматически.
+                op.set_username(vfs.uri_user(uri) or GLib.get_user_name())
         except Exception:
             op = Gio.MountOperation()
 

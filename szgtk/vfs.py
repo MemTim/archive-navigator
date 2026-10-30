@@ -13,6 +13,7 @@ ATTRS = ','.join((
     'unix::mode',
     'time::modified',
     'standard::content-type',
+    'standard::icon',
     'access::can-read',
     'access::can-write',
     'access::can-execute',
@@ -34,6 +35,17 @@ def is_uri(path):
 def is_remote(path):
     """Сетевой URI (всё, кроме admin:// и file://)."""
     return is_uri(path) and not is_admin(path)
+
+
+def uri_user(uri):
+    """Пользователь из URI (smb://user@host/…)."""
+    if not is_uri(uri):
+        return ''
+    rest = uri.split('://', 1)[1]
+    authority = rest.split('/', 1)[0]
+    if '@' not in authority:
+        return ''
+    return unquote(authority.rsplit('@', 1)[0].split(':', 1)[0])
 
 
 def gfile(path):
@@ -66,9 +78,30 @@ def admin_uri(path):
     return ADMIN + quote(p, safe='/')
 
 
+def _is_smb_server_root(path):
+    if not isinstance(path, str) or not path.startswith('smb://'):
+        return False
+    return '/' not in path.split('://', 1)[1].rstrip('/')
+
+
+def _child_uri(parent, name):
+    """URI дочернего элемента.
+
+    SMB-бэкенд GVfs для ресурсов в корне сервера возвращает URI вида
+    smb://host/._Share: подключить его можно, а открыть — нельзя
+    («Не является каталогом»). Обычный smb://host/Share/ работает.
+    """
+    uri = gfile(parent).get_child(name).get_uri()
+    if _is_smb_server_root(parent):
+        head, sep, last = uri.rpartition('/')
+        if sep and last.startswith('._'):
+            uri = head + '/' + last[2:]
+    return uri
+
+
 def join(parent, name):
     if is_uri(parent):
-        return gfile(parent).get_child(name).get_uri()
+        return _child_uri(parent, name)
     return os.path.join(parent, name)
 
 
@@ -148,16 +181,22 @@ def stat(path):
     except GLib.Error:
         pass
     return Stat(i.get_attribute_uint32('unix::mode'), i.get_size(),
-                int(i.get_attribute_uint64('time::modified')), typ == Gio.FileType.DIRECTORY,
+                int(i.get_attribute_uint64('time::modified')), _is_dir_type(typ),
                 link, i.get_attribute_boolean('access::can-read'),
                 i.get_attribute_boolean('access::can-write'),
                 i.get_attribute_boolean('access::can-execute'))
 
 
+def _is_dir_type(typ):
+    # MOUNTABLE — это, например, ресурсы SMB в корне сервера: открывать их
+    # нужно как папки, иначе приложение пытается скопировать каталог как файл.
+    return typ in (Gio.FileType.DIRECTORY, Gio.FileType.MOUNTABLE)
+
+
 def is_dir(path):
     try:
         if is_uri(path):
-            return _info(path, follow=True).get_file_type() == Gio.FileType.DIRECTORY
+            return _is_dir_type(_info(path, follow=True).get_file_type())
         return os.path.isdir(path)
     except (OSError, GLib.Error):
         return False
@@ -225,12 +264,14 @@ def is_program(path):
 
 class Entry:
     __slots__ = ('name', 'path', 'is_dir', 'is_link', 'size', 'mtime', 'mode',
-                 'can_read', 'can_write')
+                 'can_read', 'can_write', 'icon')
 
-    def __init__(self, name, path, is_dir, is_link, size, mtime, mode, can_read, can_write):
+    def __init__(self, name, path, is_dir, is_link, size, mtime, mode, can_read,
+                 can_write, icon=None):
         self.name, self.path, self.is_dir, self.is_link = name, path, is_dir, is_link
         self.size, self.mtime, self.mode = size, mtime, mode
         self.can_read, self.can_write = can_read, can_write
+        self.icon = icon
 
 
 def listdir(path):
@@ -246,7 +287,7 @@ def listdir(path):
                 if i is None:
                     break
                 name = i.get_name()
-                child = gfile(path).get_child(name).get_uri()
+                child = _child_uri(path, name)
                 typ = i.get_file_type()
                 link = typ == Gio.FileType.SYMBOLIC_LINK or i.get_is_symlink()
                 src = i
@@ -256,13 +297,14 @@ def listdir(path):
                         typ = src.get_file_type()
                     except GLib.Error:
                         pass
-                isdir = typ == Gio.FileType.DIRECTORY
+                isdir = _is_dir_type(typ)
                 out.append(Entry(name, child, isdir, link,
                                  src.get_size() if not isdir else -1,
                                  int(src.get_attribute_uint64('time::modified')),
                                  src.get_attribute_uint32('unix::mode'),
                                  src.get_attribute_boolean('access::can-read'),
-                                 src.get_attribute_boolean('access::can-write')))
+                                 src.get_attribute_boolean('access::can-write'),
+                                 src.get_icon()))
         finally:
             en.close(None)
         return out

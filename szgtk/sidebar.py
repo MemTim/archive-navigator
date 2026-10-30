@@ -1288,6 +1288,8 @@ class Sidebar(Gtk.Box):
         op = Gtk.MountOperation(parent=self.win)
         if anonymous:
             op.set_anonymous(True)
+        else:
+            op.set_username(self._uri_parts(uri)[2] or GLib.get_user_name())
 
             def answer_anonymous(operation, message, default_user,
                                  default_domain, flags):
