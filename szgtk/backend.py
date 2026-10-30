@@ -89,6 +89,9 @@ class Job:
         self.procs = []
         self.fraction = None
         self.text = ''
+        # байты для копирования: по ним диалог считает проценты и скорость
+        self.bytes_done = 0
+        self.bytes_total = 0
         # общий токен отмены для операций без внешнего процесса (копирование)
         self.cancellable = Gio.Cancellable()
 

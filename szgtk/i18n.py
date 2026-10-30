@@ -119,6 +119,7 @@ RU.update({
     'Log file:': 'Файл журнала:',
     'This archive is already being written to': 'Этот архив уже записывается',
     'Calculating size…': 'Подсчёт размера…',
+    '{0}/s': '{0}/с',
     'Add': 'Добавить', 'Extract': 'Извлечь', 'Test': 'Тест', 'Move': 'Переместить', 'Info': 'Информация',
     'Open': 'Открыть', 'Open with…': 'Открыть с помощью…', 'Run': 'Запустить',
     'Choose an application to open the file:': 'Выберите программу для открытия файла:',

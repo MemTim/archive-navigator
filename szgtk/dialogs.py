@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from .imports import *  # noqa: F401,F403
 from .i18n import _
+from .display import DISP, format_size
 from .theme import _theme, style_window
 from .utils import handle_text_shortcut
 
@@ -252,6 +253,15 @@ def pick(parent, kind, title, cb, initial=None, name=None):
 
 
 # ───────────────────────────── прогресс ─────────────────────────────
+def _rate_text(bps):
+    """Скорость всегда в удобных единицах, независимо от режима размеров."""
+    cfg = dict(DISP)
+    cfg['size_mode'] = 'adaptive'
+    if int(cfg.get('size_decimals') or 0) < 1:
+        cfg['size_decimals'] = 1
+    return _('{0}/s').format(format_size(bps, cfg))
+
+
 class ProgressDialog(DlgBase):
     def __init__(self, parent, title, job):
         # Не модальный: пока идёт архивация, окно проводника должно оставаться
@@ -260,16 +270,23 @@ class ProgressDialog(DlgBase):
                          resizable=False, destroy_with_parent=True)
         self.job = job
         self._alive = True
+        self._samples = []
+        self._rate = None
         self.set_default_size(440, -1)
         root = vbox(10, 16)
         self.set_child(root)
         root.append(lbl(title))
         self.bar = Gtk.ProgressBar()
         root.append(self.bar)
+        row = hbox(12)
         self.lab = lbl('')
+        self.lab.set_hexpand(True)
         self.lab.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
         self.lab.set_max_width_chars(60)
-        root.append(self.lab)
+        row.append(self.lab)
+        self.info = lbl('', xalign=1.0)
+        row.append(self.info)
+        root.append(row)
         cancel = Gtk.Button(label=_('Cancel'))
         cancel.set_halign(Gtk.Align.END)
         cancel.connect('clicked', lambda b: job.cancel())
@@ -291,13 +308,37 @@ class ProgressDialog(DlgBase):
             self.present()
         return False
 
+    def _speed(self, now):
+        """Скорость по последней секунде (байт/с), если известны байты."""
+        done = self.job.bytes_done
+        self._samples.append((now, done))
+        while len(self._samples) > 2 and now - self._samples[0][0] > 1.0:
+            self._samples.pop(0)
+        if len(self._samples) < 2:
+            return None
+        t0, b0 = self._samples[0]
+        dt = now - t0
+        if dt < 0.08 or done <= b0:
+            return None
+        rate = (done - b0) / dt
+        self._rate = rate if self._rate is None else (self._rate + rate) / 2
+        return self._rate
+
     def _tick(self):
         if not self._alive:
             return False
-        if self.job.fraction is None:
+        f = self.job.fraction
+        if f is None:
             self.bar.pulse()
+            self.info.set_text('')
         else:
-            self.bar.set_fraction(min(1.0, self.job.fraction))
+            f = min(1.0, max(0.0, f))
+            self.bar.set_fraction(f)
+            parts = ['%d %%' % round(f * 100)]
+            speed = self._speed(time.monotonic())
+            if speed and f < 1.0:
+                parts.append(_rate_text(speed))
+            self.info.set_text(' · '.join(parts))
         self.lab.set_text(self.job.text)
         return True
 

@@ -383,6 +383,8 @@ def _set_progress(ctx):
     job, total = ctx['job'], ctx['total']
     if job is None or not total:
         return
+    job.bytes_done = ctx['done']
+    job.bytes_total = total
     job.fraction = min(1.0, ctx['done'] / total)
     if ctx['name']:
         job.text = ctx['name']
