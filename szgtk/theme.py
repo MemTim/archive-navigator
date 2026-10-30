@@ -144,17 +144,16 @@ window:drop(active), window :drop(active) { outline: none; box-shadow: none; bor
 .sz-prog-body { padding: 18px 24px 20px 24px; }
 .sz-prog-icon { border-radius: 10px; padding: 9px; background: alpha(currentColor, 0.07); }
 .sz-prog-name { font-weight: 700; font-size: 150%; }
-/* Мелкий шрифт (92 %) у некоторых шрифтов выступает над логической строкой:
-   без запаса сверху Pango обрезает верх заглавных букв и цифр. */
-.sz-prog-sub { font-size: 92%; opacity: 0.62; padding-top: 3px; }
+/* Вторичный текст не уменьшаем: при 92 % хинтинг Adwaita Sans округляет
+   верхние перекладины «Б»/«П»/«7» в ноль (буквы выглядят обрезанными). */
+.sz-prog-sub { opacity: 0.62; }
 .sz-prog-pct { font-weight: 700; font-size: 150%; }
-.sz-prog-info { font-size: 92%; opacity: 0.62; padding-top: 3px; }
-.sz-prog-files { font-size: 92%; opacity: 0.62; padding-top: 3px; }
+.sz-prog-info { opacity: 0.62; }
+.sz-prog-files { opacity: 0.62; }
 .sz-prog-bar trough { min-height: 8px; border-radius: 4px; }
 .sz-prog-bar progress { min-height: 8px; border-radius: 4px; }
 .sz-prog-footer { padding: 13px 20px; border-top: 1px solid alpha(currentColor, 0.14); }
 .sz-prog-cancel, .sz-prog-pause { padding: 7px 18px; border-radius: 8px; }
-.sz-prog-cancel label, .sz-prog-pause label { padding-top: 3px; }
 """
 
 MIDNIGHT_CSS = """
