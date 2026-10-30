@@ -303,13 +303,17 @@ class ProgressDialog(DlgBase):
         self._speed_text = ''
         self._paused_shown = job.paused
         self._icon_name = ''
-        self.set_default_size(500, -1)
+        # Фиксированный размер: при быстром копировании/перемещении строки
+        # появляются и исчезают, и окно не должно прыгать.
+        self.set_default_size(520, 392)
+        self.set_size_request(520, 392)
 
         root = vbox(0)
         self.set_child(root)
 
         body = vbox(16, 24)
         body.add_css_class('sz-prog-body')
+        body.set_vexpand(True)
         root.append(body)
 
         top = hbox(14)
