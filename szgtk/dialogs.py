@@ -254,7 +254,9 @@ def pick(parent, kind, title, cb, initial=None, name=None):
 # ───────────────────────────── прогресс ─────────────────────────────
 class ProgressDialog(DlgBase):
     def __init__(self, parent, title, job):
-        super().__init__(title=title, modal=True, transient_for=parent,
+        # Не модальный: пока идёт архивация, окно проводника должно оставаться
+        # рабочим — можно выделять, открывать и перемещать файлы.
+        super().__init__(title=title, modal=False, transient_for=parent,
                          resizable=False, destroy_with_parent=True)
         self.job = job
         self._alive = True
@@ -273,8 +275,12 @@ class ProgressDialog(DlgBase):
         cancel.connect('clicked', lambda b: job.cancel())
         root.append(cancel)
         self.connect('close-request', self._on_close)
+        self.connect('destroy', self._on_destroy)
         GLib.timeout_add(100, self._tick)
         GLib.timeout_add(250, self._delayed_present)
+
+    def _on_destroy(self, *a):
+        self._alive = False
 
     def _on_close(self, w):
         self.job.cancel()
@@ -296,6 +302,8 @@ class ProgressDialog(DlgBase):
         return True
 
     def finish(self):
+        if not self._alive:
+            return
         self._alive = False
         self.destroy()
 

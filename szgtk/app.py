@@ -5,6 +5,9 @@ from .config import Config
 from .backend import SevenZip
 from .dialogs import alert
 from .window import MainWindow
+from . import diagnostics
+
+import traceback
 
 # ───────────────────────────── приложение ─────────────────────────────
 class App(Gtk.Application):
@@ -35,6 +38,7 @@ class App(Gtk.Application):
         self.win = win
         win.connect('close-request', self._on_window_closing)
         win.connect('destroy', self._on_window_destroy)
+        diagnostics.log('новое окно %s, всего %d', hex(id(win)), len(self.wins))
         if not sz.bin:
             GLib.idle_add(lambda w=win: alert(w, _('7z not found'),
                                               _('Install it:') + ' sudo pacman -S 7zip') and False)
@@ -49,21 +53,41 @@ class App(Gtk.Application):
 
     def _on_window_closing(self, win):
         # close-request приходит при закрытии; destroy в GTK4 — только при уничтожении
+        left = len(self.wins) - (1 if win in self.wins else 0)
+        diagnostics.log('окно %s: close-request, останется %d', hex(id(win)), left)
+        if left <= 0:
+            diagnostics.log_stack('закрывается последнее окно — стек вызова')
         self._forget_window(win)
         return False
 
     def _on_window_destroy(self, win):
+        diagnostics.log('окно %s: destroy, осталось %d', hex(id(win)),
+                        len(self.wins) - (1 if win in self.wins else 0))
         self._forget_window(win)
+        if not self.wins:
+            diagnostics.log_stack('уничтожено последнее окно — стек вызова')
 
     def do_activate(self):
+        diagnostics.log('do_activate, окон=%d', len(self.wins))
         if not self.wins:
             self.new_window()
+
+    def do_startup(self):
+        # важно вызвать именно Gtk.Application: его startup инициализирует GTK
+        Gtk.Application.do_startup(self)
+        diagnostics.log('do_startup: primary=%s, id=%s', self.get_is_registered(),
+                        self.get_application_id())
+
+    def do_shutdown(self):
+        diagnostics.note_exit('do_shutdown (штатное завершение), окон=%d' % len(self.wins))
+        Gtk.Application.do_shutdown(self)
 
     def rebuild(self):
         """Пересоздать все окна (смена дизайна / языка) с сохранением расположений панелей."""
         olds = list(self.wins)
         if not olds:
             return
+        diagnostics.log_stack('rebuild: пересоздание %d окн(а)' % len(olds))
         self.conf.save()
         states = []
         for old in olds:
@@ -82,6 +106,7 @@ class App(Gtk.Application):
     def do_command_line(self, cl):
         args = cl.get_arguments()[1:]
         cwd = cl.get_cwd() or os.getcwd()
+        diagnostics.log('do_command_line args=%r cwd=%s', args, cwd)
         win = self.new_window()
         mode, paths = None, []
         for a in args:
@@ -100,7 +125,17 @@ class App(Gtk.Application):
 
 
 def main():
-    sys.exit(App().run(sys.argv))
+    diagnostics.install()
+    try:
+        code = App().run(sys.argv)
+    except SystemExit:
+        raise
+    except BaseException:
+        diagnostics.log('исключение в App.run:\n%s',
+                        traceback.format_exc().rstrip('\n'))
+        raise
+    diagnostics.note_exit('run() вернул %r' % (code,))
+    sys.exit(code)
 
 
 if __name__ == '__main__':

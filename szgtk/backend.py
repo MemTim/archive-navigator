@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from .imports import *  # noqa: F401,F403
+from . import diagnostics
 from .utils import parse_time
 
 # ───────────────────────────── бэкенд 7z ─────────────────────────────
@@ -66,6 +67,20 @@ def parse_slt(text):
     return header, [e for e in map(Entry, entries) if e.path]
 
 
+def _cmdline(cmd, limit=2000):
+    """Командная строка для журнала — без пароля и без длинного хвоста имён."""
+    out = []
+    for a in cmd:
+        if isinstance(a, str) and a.startswith('-p') and len(a) > 2:
+            out.append('-p***')
+        else:
+            out.append(a)
+    text = ' '.join(shlex.quote(str(a)) for a in out)
+    if len(text) > limit:
+        text = text[:limit] + ' … (%d аргументов)' % len(out)
+    return text
+
+
 class Job:
     """Состояние фоновой операции (читается диалогом прогресса)."""
 
@@ -74,6 +89,8 @@ class Job:
         self.procs = []
         self.fraction = None
         self.text = ''
+        # общий токен отмены для операций без внешнего процесса (копирование)
+        self.cancellable = Gio.Cancellable()
 
     def register(self, proc):
         self.procs.append(proc)
@@ -82,6 +99,10 @@ class Job:
 
     def cancel(self):
         self.cancelled = True
+        try:
+            self.cancellable.cancel()
+        except Exception:
+            pass
         for p in self.procs:
             self._kill(p)
 
@@ -132,10 +153,12 @@ class SevenZip:
         if password:
             cmd.append('-p' + password)
         cmd += list(switches) + ['--'] + list(positional)
+        diagnostics.log('7z %s', _cmdline(cmd))
         try:
             proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL,
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         except OSError as e:
+            diagnostics.log('7z: не удалось запустить: %s', e)
             return Result(255, str(e))
         if job is not None:
             job.register(proc)
@@ -153,6 +176,7 @@ class SevenZip:
             self._handle_line(buf.decode('utf-8', 'replace'), out, job)
         rc = proc.wait()
         cancelled = bool(job and job.cancelled)
+        diagnostics.log('7z: rc=%d%s', rc, ' (отменено)' if cancelled else '')
         return Result(255 if cancelled else rc, '\n'.join(out), cancelled)
 
     def list_archive(self, path, password=None):

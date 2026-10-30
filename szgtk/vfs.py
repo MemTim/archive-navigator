@@ -369,6 +369,108 @@ def copy(src, dst):
         _copy_file(src, dst)
 
 
+def size_of(path):
+    """Суммарный размер файла или дерева (символические ссылки не разворачиваются)."""
+    try:
+        if is_dir(path) and not is_link(path):
+            return sum(size_of(e.path) for e in listdir(path))
+        return _file_size(path)
+    except (OSError, GLib.Error):
+        return 0
+
+
+def _set_progress(ctx):
+    job, total = ctx['job'], ctx['total']
+    if job is None or not total:
+        return
+    job.fraction = min(1.0, ctx['done'] / total)
+    if ctx['name']:
+        job.text = ctx['name']
+
+
+def _cancelled(ctx):
+    job = ctx['job']
+    return job is not None and job.cancelled
+
+
+def _file_size(path):
+    try:
+        if is_link(path):
+            # сама ссылка, а не её цель — ровно столько и «копируется»
+            return max(0, _info(path, follow=False).get_size())
+        return max(0, stat(path).st_size)
+    except (OSError, GLib.Error):
+        return 0
+
+
+def _copy_one(src, dst, ctx):
+    if _cancelled(ctx):
+        return
+    job = ctx['job']
+    sfile, dfile = gfile(src), gfile(dst)
+    if is_link(src):
+        # символическую ссылку копируем как ссылку, а не как содержимое
+        sfile.copy(dfile, Gio.FileCopyFlags.OVERWRITE | Gio.FileCopyFlags.NOFOLLOW_SYMLINKS,
+                   None, None)
+        # size_of() считает размер по цели ссылки — учитываем его же
+        ctx['done'] += _file_size(src)
+        _set_progress(ctx)
+        return
+    # Потоковое копирование блоками: даёт настоящий прогресс и позволяет
+    # прервать копирование в любой момент (в отличие от g_file_copy, чей
+    # колбэк прогресса работает только при запущенном главном цикле).
+    src_stream = sfile.read(None)
+    out = dfile.replace(None, False, Gio.FileCreateFlags.REPLACE_DESTINATION, None)
+    chunk = 4 * 1024 * 1024
+    try:
+        while True:
+            if _cancelled(ctx):
+                return
+            data = src_stream.read_bytes(chunk, None)
+            n = data.get_size()
+            if n == 0:
+                break
+            out.write_bytes(data, None)
+            ctx['done'] += n
+            _set_progress(ctx)
+    finally:
+        for stream in (out, src_stream):
+            try:
+                stream.close(None)
+            except Exception:
+                pass
+    if not _cancelled(ctx):
+        try:
+            sfile.copy_attributes(dfile, Gio.FileCopyFlags.OVERWRITE, None)
+        except GLib.Error:
+            pass
+
+
+def _copy_node(src, dst, ctx):
+    if _cancelled(ctx):
+        return
+    if is_dir(src) and not is_link(src):
+        mkdirs(dst)
+        for e in listdir(src):
+            if _cancelled(ctx):
+                return
+            _copy_node(e.path, join(dst, e.name), ctx)
+    else:
+        _copy_one(src, dst, ctx)
+
+
+def copy_with_progress(src, dst, job=None, total=0, done=0, name=None):
+    """Копировать файл/дерево, обновляя прогресс в job и слушая отмену.
+
+    Возвращает новое значение «скопировано байт» — его нужно передать в
+    следующий вызов, чтобы прогресс по нескольким элементам был сквозным.
+    При отмене (job.cancelled) копирование прекращается.
+    """
+    ctx = {'job': job, 'total': total, 'done': done, 'name': name}
+    _copy_node(src, dst, ctx)
+    return ctx['done']
+
+
 def move(src, dst):
     try:
         gfile(src).move(gfile(dst), Gio.FileCopyFlags.OVERWRITE, None, None)

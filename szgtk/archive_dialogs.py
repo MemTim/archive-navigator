@@ -115,6 +115,7 @@ class AddDialog(DlgBase):
         super().__init__(title=_('Add to Archive'), modal=True, transient_for=win,
                          destroy_with_parent=True)
         self.win, self.on_ok, self._ready = win, on_ok, False
+        self._submitted = False
         self.dict_vals, self.word_vals = [None], [None]
         root = vbox(10, 14)
         self.set_child(root)
@@ -271,6 +272,8 @@ class AddDialog(DlgBase):
              initial=os.path.dirname(cur), name=os.path.basename(cur))
 
     def _ok(self):
+        if self._submitted:
+            return
         name = self.e_name.get_text().strip()
         if not name:
             return
@@ -303,6 +306,7 @@ class AddDialog(DlgBase):
             password=pw, enc_names=self.c_hdr.get_active(),
             enc_method='ZipCrypto' if self.dd_enc.get_selected() == 1 else 'AES256',
             volumes=vol, params=self.e_par.get_text().strip())
+        self._submitted = True
         self.close()
         self.on_ok(o)
 

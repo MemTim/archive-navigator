@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from .imports import *  # noqa: F401,F403
 from . import vfs
+from . import diagnostics
 
 # ───────────────────────────── вспомогательные функции операций ─────────────────────────────
 HASHES = ['CRC32', 'CRC64', 'XXH64', 'MD5', 'SHA1', 'SHA256', 'SHA384', 'SHA512', 'SHA3-256',
@@ -41,6 +42,37 @@ def prepare_add(paths, subdir, pathmode):
             pass
     names = [subdir.split('/')[0]] if subdir else [os.path.basename(p) for p in paths]
     return names, tmp, tmp
+
+
+def add_thread_limit(level, fmt='7z'):
+    """Сколько потоков 7z можно дать, чтобы не улететь в OOM.
+
+    Уровни 7-9 требуют сотни мегабайт на поток; на машине, где уже занята
+    память, 7-Zip может выйти за пределы и попасть под OOM-killer вместе
+    со всем cgroup приложения. Возвращает None, если ограничение не нужно
+    (памяти достаточно) — тогда 7-Zip сам выберет число потоков.
+    """
+    if fmt != '7z':
+        return None
+    try:
+        level = int(level)
+    except (TypeError, ValueError):
+        return None
+    per_thread = {5: 60, 6: 60, 7: 80, 8: 110, 9: 160}.get(level)
+    if per_thread is None:
+        return None
+    cpu = os.cpu_count() or 1
+    if cpu <= 2:
+        return None
+    avail = diagnostics.available_mb()
+    if not avail:
+        return None
+    limit = max(1, min(cpu, int(avail * 0.4) // per_thread))
+    if limit >= cpu:
+        return None
+    diagnostics.log('мало памяти (%d МБ): потоков 7z %d из %d, уровень %d',
+                    avail, limit, cpu, level)
+    return limit
 
 
 def count_conflicts(entries, names, dest, pathmode):

@@ -375,17 +375,19 @@ class SettingsDialog(DlgBase):
         for key, text in (('show_hidden', N_('Show hidden files')),
                           ('single_click', N_('Single-click to open an item')),
                           ('use_trash', N_('Move deleted files to the Trash')),
-                          ('confirm_delete', N_('Confirm file deletion')),
-                          ('restore_last_dir', N_('Open the last used folder on start'))):
+                          ('confirm_delete', N_('Confirm file deletion'))):
             cb = Gtk.CheckButton(label=_(text))
             cb.set_active(bool(c[key]))
             self.checks[key] = cb
             pg.append(cb)
         g = Gtk.Grid(row_spacing=8, column_spacing=12)
+        self.dd_start = make_dd([_('Home folder'), _('Last used folder')],
+                                1 if c['restore_last_dir'] else 0)
+        grid_row(g, 0, _('On startup:'), self.dd_start)
         self.e_view = Gtk.Entry(hexpand=True, text=c['viewer'], placeholder_text='xdg-open')
         self.e_edit = Gtk.Entry(hexpand=True, text=c['editor'], placeholder_text='xdg-open')
-        grid_row(g, 0, _('Viewer:'), self.e_view)
-        grid_row(g, 1, _('Editor:'), self.e_edit)
+        grid_row(g, 1, _('Viewer:'), self.e_view)
+        grid_row(g, 2, _('Editor:'), self.e_edit)
         fm = c['add_format'] if c['add_format'] in FORMATS else '7z'
         lv = [x[0] for x in LEVELS]
         self.dd_fmt = make_dd(FORMATS, FORMATS.index(fm))
@@ -394,10 +396,10 @@ class SettingsDialog(DlgBase):
         pm = [x[0] for x in EXTRACT_PATHMODES]
         self.dd_over = make_dd([_(x[1]) for x in OVERWRITE_MODES], ov.index(c['extract_overwrite']) if c['extract_overwrite'] in ov else 0)
         self.dd_pm = make_dd([_(x[1]) for x in EXTRACT_PATHMODES], pm.index(c['extract_pathmode']) if c['extract_pathmode'] in pm else 0)
-        grid_row(g, 2, _('Default archive format:'), self.dd_fmt)
-        grid_row(g, 3, _('Default compression level:'), self.dd_lvl)
-        grid_row(g, 4, _('Default overwrite mode:'), self.dd_over)
-        grid_row(g, 5, _('Default path mode:'), self.dd_pm)
+        grid_row(g, 3, _('Default archive format:'), self.dd_fmt)
+        grid_row(g, 4, _('Default compression level:'), self.dd_lvl)
+        grid_row(g, 5, _('Default overwrite mode:'), self.dd_over)
+        grid_row(g, 6, _('Default path mode:'), self.dd_pm)
         pg.append(g)
         self.c_ta = Gtk.CheckButton(label=_('Select files by typing their name'))
         self.c_ta.set_active(bool(c['typeahead']))
@@ -1195,6 +1197,7 @@ class SettingsDialog(DlgBase):
         before = (c['design'], c['language'])
         for k, cb in self.checks.items():
             c[k] = cb.get_active()
+        c['restore_last_dir'] = self.dd_start.get_selected() == 1
         c['viewer'], c['editor'] = self.e_view.get_text().strip(), self.e_edit.get_text().strip()
         c['add_format'] = FORMATS[self.dd_fmt.get_selected()]
         c['add_level'] = LEVELS[self.dd_lvl.get_selected()][0]

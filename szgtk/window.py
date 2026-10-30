@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from .imports import *  # noqa: F401,F403
+from . import diagnostics
+import traceback
 from .i18n import _, N_, set_language
 from .display import DISP, apply_display, format_size
 from .utils import (TAR_COMPOUND, accel_pretty, accel_variants, archive_stem,
@@ -21,8 +23,8 @@ from .benchmark import BenchmarkDialog
 from .convert import (ConverterDialog, build_convert_menu, convert_files, kind_of,
                       supports as convert_supports)
 from .properties import PropertiesDialog, read_archive_metadata
-from .ops import (HASHES, count_conflicts, default_stem, groups_from_model,
-                  names_for, prepare_add, widget_xy)
+from .ops import (HASHES, add_thread_limit, count_conflicts, default_stem,
+                  groups_from_model, names_for, prepare_add, widget_xy)
 from .panel import COLUMNS, LIST_SIZES, TILE_SIZES, Panel
 from .menu import MenuBar, MenuLayer
 from .menu_layout import (contexts as menu_context_restrictions, hidden as hidden_menu_items,
@@ -36,6 +38,7 @@ class MainWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title=APP_NAME + (' — root' if IS_ROOT else ''))
         self.sz, self.conf = sz, conf
         self.passwords, self.temp_dirs, self.closing, self.rebuilding = {}, [], False, False
+        self._active_archives = set()
         self.clipboard_data, self._clipboard_own = None, False
         self.undo_stack, self.redo_stack, self._history_busy = [], [], False
         self._clipboard = self.get_clipboard()
@@ -1171,17 +1174,37 @@ class MainWindow(Gtk.ApplicationWindow):
         job = Job()
         dlg = ProgressDialog(parent or self, title, job)
         res = {}
+        app = self.get_application()
+        if app is not None:
+            # пока идёт задание, приложение не должно завершиться, даже если
+            # закрыть все окна — иначе 7-Zip останется сиротой, а результат
+            # потеряется
+            app.hold()
+        started = time.monotonic()
+        diagnostics.log('задание «%s» начато (RSS=%s МБ)', title, diagnostics.rss_mb())
 
         def target():
             try:
                 res['v'] = worker(job)
             except Exception as e:  # noqa
                 res['e'] = e
+                diagnostics.log('задание «%s»: исключение:\n%s', title,
+                                traceback.format_exc().rstrip('\n'))
             GLib.idle_add(fin)
 
         def fin():
+            diagnostics.log('задание «%s» завершено за %.1f с (отменено=%s, RSS=%s МБ)',
+                            title, time.monotonic() - started, job.cancelled,
+                            diagnostics.rss_mb())
             dlg.finish()
-            on_done(res.get('v'), res.get('e'), job)
+            try:
+                on_done(res.get('v'), res.get('e'), job)
+            except Exception:  # noqa
+                diagnostics.log('задание «%s»: ошибка обработчика:\n%s', title,
+                                traceback.format_exc().rstrip('\n'))
+            finally:
+                if app is not None:
+                    app.release()
             return False
         threading.Thread(target=target, daemon=True).start()
 
@@ -1566,12 +1589,22 @@ class MainWindow(Gtk.ApplicationWindow):
             paths = staged
         opts['archive'] = archive
         exists = os.path.exists(local_archive)
+        if local_archive in self._active_archives:
+            alert(self, _('This archive is already being written to'))
+            return
         self.conf['add_format'], self.conf['add_level'] = opts['fmt'], opts['level']
+        if not opts.get('threads'):
+            limit = add_thread_limit(opts.get('level'), opts.get('fmt'))
+            if limit:
+                opts = dict(opts, threads=str(limit))
         sw = build_add_switches(opts, exists, self.sz.is_p7zip) + ['-y']
         names, cwd, tmp = prepare_add(paths, subdir, opts['pathmode'])
         cmd = 'a' if opts['update'] == 'add' else 'u'
+        diagnostics.log('добавление: архив=%s, элементов=%d, режим=%s, ключи=%s',
+                        local_archive, len(names), cmd, ' '.join(sw))
 
         def done(res):
+            self._active_archives.discard(local_archive)
             if tmp:
                 shutil.rmtree(tmp, ignore_errors=True)
             if src_tmp:
@@ -1585,6 +1618,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 shutil.rmtree(tmp_arc, ignore_errors=True)
             if self.report(res, _('Add to Archive')):
                 self.reload_all()
+        self._active_archives.add(local_archive)
         self.run7(_('Adding to archive'), cmd, sw, [local_archive] + names, done, cwd=cwd,
                   archive=local_archive if exists else None, password=opts.get('password') or None)
 
@@ -2323,6 +2357,16 @@ class MainWindow(Gtk.ApplicationWindow):
     def op_move(self, *a):
         self.op_copy(move=True)
 
+    @staticmethod
+    def _drop_partial(target, created):
+        """Убрать недокопированный объект, если он создан этим заданием."""
+        if not created:
+            return
+        try:
+            vfs.remove(target)
+        except (OSError, GLib.Error):
+            pass
+
     def fs_transfer(self, paths, dest, move, on_done=None, record=True):
         if not vfs.is_admin(dest):
             dest = os.path.abspath(os.path.expanduser(dest))
@@ -2342,10 +2386,22 @@ class MainWindow(Gtk.ApplicationWindow):
 
             def work(job):
                 errs = []
+                job.text = _('Calculating size…')
+                job.fraction = None
+                total = 0
+                if not move:
+                    for src in paths:
+                        if job.cancelled:
+                            return errs
+                        total += vfs.size_of(src)
+                done = 0
                 for i, src in enumerate(paths):
                     if job.cancelled:
                         break
-                    job.text, job.fraction = vfs.basename(src), i / len(paths)
+                    name = vfs.basename(src.rstrip('/'))
+                    job.text = name
+                    if not total:
+                        job.fraction = i / len(paths)
                     target = vfs.join(dest, vfs.basename(src.rstrip('/')))
                     same = vfs.uri(src) == vfs.uri(target)
                     try:
@@ -2359,17 +2415,27 @@ class MainWindow(Gtk.ApplicationWindow):
                         isdir = vfs.is_dir(src) and not vfs.is_link(src)
                         if move:
                             if isdir and vfs.is_dir(target):
-                                vfs.copy(src, target)
+                                vfs.copy_with_progress(src, target, job, vfs.size_of(src), 0, name)
+                                if job.cancelled:
+                                    self._drop_partial(target, created)
+                                    break
                                 vfs.remove(src)
                                 created = False
                             else:
                                 vfs.move(src, target)
                         else:
-                            vfs.copy(src, target)
+                            done = vfs.copy_with_progress(src, target, job, total, done, name)
+                            if job.cancelled:
+                                self._drop_partial(target, created)
+                                break
                         if created:
                             pairs.append((src, target))
                     except (OSError, GLib.Error, shutil.Error) as e:
+                        if job.cancelled:
+                            break
                         errs.append('%s: %s' % (src, getattr(e, 'message', e)))
+                if not job.cancelled and total:
+                    job.fraction = 1.0
                 return errs
 
             def done(errs, err, job):
@@ -2856,6 +2922,7 @@ class MainWindow(Gtk.ApplicationWindow):
         d.set_license_type(Gtk.License.CUSTOM)
         d.set_license('PolyForm Noncommercial License 1.0.0\n'
                       'https://polyformproject.org/licenses/noncommercial/1.0.0')
+        d.set_debug_info(_('Log file:') + ' ' + (diagnostics.log_path() or '—'))
         d.present()
 
     # ───────────── командная строка ─────────────
@@ -2887,6 +2954,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self._extract_dialog(_('Extract'), dest, lambda d, o: self.extract_start(archives, d, o)).present()
 
     def _on_close(self, w):
+        diagnostics.log('окно %s: _on_close', hex(id(self)))
         self.closing = True
         if self.sidebar is not None:
             self.sidebar.disconnect_monitor()

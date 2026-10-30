@@ -116,6 +116,9 @@ RU.update({
     'Tools': 'Сервис', 'Contents…': 'Справка…', 'About Archive Navigator…': 'О программе…', 'Help': 'Справка',
     'Two-panel GTK4 file manager and archiver': 'Двухпанельный файловый менеджер и архиватор на GTK4',
     'Project page on GitHub': 'Страница проекта на GitHub',
+    'Log file:': 'Файл журнала:',
+    'This archive is already being written to': 'Этот архив уже записывается',
+    'Calculating size…': 'Подсчёт размера…',
     'Add': 'Добавить', 'Extract': 'Извлечь', 'Test': 'Тест', 'Move': 'Переместить', 'Info': 'Информация',
     'Open': 'Открыть', 'Open with…': 'Открыть с помощью…', 'Run': 'Запустить',
     'Choose an application to open the file:': 'Выберите программу для открытия файла:',
@@ -169,7 +172,7 @@ RU.update({
     'Esc — cancel, Backspace — clear': 'Esc — отмена, Backspace — очистить',
     'Use Ctrl or Alt together with a letter or digit': 'Используйте Ctrl или Alt вместе с буквой или цифрой',
     'General': 'Общие', 'Appearance': 'Оформление', 'Language': 'Язык', 'Hotkeys': 'Горячие клавиши',
-    'Open the last used folder on start': 'Открывать при запуске последнюю папку',
+    'On startup:': 'При запуске:', 'Last used folder': 'Последняя папка',
     'Default archive format:': 'Формат архива по умолчанию:', 'Default compression level:': 'Уровень сжатия по умолчанию:',
     'Default overwrite mode:': 'Режим замены по умолчанию:', 'Default path mode:': 'Режим путей по умолчанию:',
     'Design': 'Дизайн', 'Color scheme:': 'Цветовая схема:', 'Row density:': 'Плотность строк:',
@@ -390,7 +393,7 @@ RU.update({
     'Add to .7z': 'Добавить в .7z', 'Add to .zip': 'Добавить в .zip',
     'Extract to folder': 'Извлечь в папку',
     'Display conditions': 'Условия отображения',
-    'If all are checked, there are no additional restrictions. If none are checked, it is never shown.':
+    'If all are checked, there are no additional restrictions. If none are checked, the item is never shown.':
         'Если отмечены все — дополнительных ограничений нет. '
         'Если не отмечено ничего — пункт не показывается.',
     'Empty area': 'Пустое место', 'Folder': 'Папка', 'Audio file': 'Аудиофайл',
