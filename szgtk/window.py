@@ -1085,7 +1085,7 @@ class MainWindow(Gtk.ApplicationWindow):
         entries['new-folder'] = (_('Create folder'), 'win.new-folder')
         entries['select-all'] = (_('Select all'), 'win.select-all')
         entries['refresh'] = (_('Refresh'), 'win.refresh')
-        if fs and not IS_ROOT and not vfs.is_uri(p.path):
+        if fs and not IS_ROOT and not vfs.is_uri(panel.path):
             entries['open-as-root'] = (_('Open as root'), 'win.open-as-root')
 
         hidden = hidden_menu_items(self.conf)
