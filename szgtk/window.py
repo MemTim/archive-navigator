@@ -34,6 +34,36 @@ from .favorites import make as fav_make, name as fav_name, path as fav_path
 from .sidebar import Sidebar, special_places
 
 class MainWindow(Gtk.ApplicationWindow):
+    @property
+    def clipboard_data(self):
+        app = self.get_application()
+        if app is not None and hasattr(app, 'clipboard_data'):
+            return app.clipboard_data
+        return getattr(self, '_clipboard_data', None)
+
+    @clipboard_data.setter
+    def clipboard_data(self, value):
+        app = self.get_application()
+        if app is not None and hasattr(app, 'clipboard_data'):
+            app.clipboard_data = value
+        else:
+            self._clipboard_data = value
+
+    @property
+    def _clip_serial(self):
+        app = self.get_application()
+        if app is not None and hasattr(app, 'clip_serial'):
+            return app.clip_serial
+        return getattr(self, '_clip_serial_local', 0)
+
+    @_clip_serial.setter
+    def _clip_serial(self, value):
+        app = self.get_application()
+        if app is not None and hasattr(app, 'clip_serial'):
+            app.clip_serial = value
+        else:
+            self._clip_serial_local = value
+
     def __init__(self, app, sz, conf, restore=None):
         super().__init__(application=app, title=APP_NAME + (' — root' if IS_ROOT else ''))
         self.sz, self.conf = sz, conf
@@ -2180,21 +2210,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._verify_clipboard(data)
 
     def _verify_clipboard(self, data):
-        """Отменить наше состояние, только если в буфере чужие данные.
+        """Отменить наше состояние, только если в буфере чужие файлы.
 
-        Пустой буфер (например, после нашего же очищения) состояние не сбрасывает.
+        Пустой буфер или текст (например, после нашего же очищения либо работы
+        менеджера буфера обмена) состояние «вырезано» не сбрасывают.
         """
         serial = self._clip_serial
-
-        def text_done(c, res, _u=None):
-            if serial != self._clip_serial or self.clipboard_data is not data:
-                return
-            try:
-                text = c.read_text_finish(res) or ''
-            except Exception:
-                text = ''
-            if text.strip():
-                self.clipboard_data = None
 
         def files_done(c, res, _u=None):
             if serial != self._clip_serial or self.clipboard_data is not data:
@@ -2207,16 +2228,15 @@ class MainWindow(Gtk.ApplicationWindow):
                 paths = [f.get_path() for f in fl.get_files() if f.get_path()]
             except Exception:
                 paths = []
-            if paths:
-                if (data.get('kind') == 'fs' and
-                        set(paths) == set(data.get('paths') or ())):
-                    return                      # тот же набор файлов — это мы
-                self.clipboard_data = None
+            if not paths:
                 return
-            try:
-                c.read_text_async(None, text_done, None)
-            except Exception:
-                pass
+            if (data.get('kind') == 'fs' and
+                    set(paths) == set(data.get('paths') or ())):
+                return                          # тот же набор файлов — это мы
+            diagnostics.log('буфер обмена заменён другим приложением — сбрасываю '
+                            'состояние «вырезано»')
+            self.clipboard_data = None
+            self.refresh_cut_marks()
 
         try:
             self.get_clipboard().read_value_async(
@@ -2257,12 +2277,34 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         self._clip_serial += 1
         self.clipboard_data = None
+        self.refresh_cut_marks()
         self._clear_system_clipboard()
+
+    def is_cut_path(self, path):
+        d = self.clipboard_data
+        return bool(d and d.get('cut') and d.get('kind') == 'fs' and
+                    path in (d.get('paths') or ()))
+
+    def refresh_cut_marks(self):
+        """Перерисовать панели всех окон: вырезанные элементы приглушаются."""
+        app = self.get_application()
+        wins = list(getattr(app, 'wins', []) or []) if app is not None else [self]
+        if self not in wins:
+            wins.append(self)
+        for w in wins:
+            for p in (getattr(w, 'p1', None), getattr(w, 'p2', None)):
+                if p is not None:
+                    try:
+                        p.refresh_cut()
+                    except Exception:
+                        pass
 
     def op_copy_selection(self, *a, cut=False):
         p = self.active
         sel = p.selected()
         if not sel:
+            diagnostics.log('буфер: %s — ничего не выделено',
+                            'вырезать' if cut else 'копировать')
             return
         self._clip_serial += 1
         if p.mode == 'arc':
@@ -2279,6 +2321,9 @@ class MainWindow(Gtk.ApplicationWindow):
             paths = [i.full for i in sel]
             self.clipboard_data = {'kind': 'fs', 'paths': paths, 'cut': cut}
             self._set_file_clipboard(paths)
+        self.refresh_cut_marks()
+        diagnostics.log('буфер: %s %d элемент(ов), панель=%s',
+                        'вырезано' if cut else 'скопировано', len(sel), p.path)
         text = _('Cut: {0}') if cut else _('Copied: {0}')
         self.set_status_message(p, text.format(len(sel)))
 
@@ -2286,8 +2331,12 @@ class MainWindow(Gtk.ApplicationWindow):
         p = self.active
         data = self.clipboard_data
         if data is not None:
+            diagnostics.log('вставка: внутренний буфер (%s), в %s',
+                            'вырезано' if data.get('cut') else 'копия', p.path)
             self._paste_clipboard(p, data)
         else:
+            diagnostics.log('вставка: внутреннего буфера нет — читаю системный, в %s',
+                            p.path)
             self._paste_external(p)
 
     def _paste_clipboard(self, p, data):
@@ -2312,6 +2361,8 @@ class MainWindow(Gtk.ApplicationWindow):
         def done(errs, cancelled):
             if data is not None and move and not errs and not cancelled:
                 self._clear_clipboard(data)
+        diagnostics.log('перенос: %s %d элемент(ов) в %s',
+                        'перемещение' if move else 'копирование', len(paths), p.path)
         self.fs_transfer(paths, p.path, move, on_done=done)
 
     def _paste_archive(self, p, data):
@@ -2362,6 +2413,8 @@ class MainWindow(Gtk.ApplicationWindow):
             except Exception:
                 paths = []
             if paths:
+                diagnostics.log('системный буфер: %d файл(ов) — вставляю как копию',
+                                len(paths))
                 self._paste_fs_paths(p, paths, False)
             else:
                 self._paste_external_text(p)
@@ -2494,10 +2547,17 @@ class MainWindow(Gtk.ApplicationWindow):
                                 created = True
                         isdir = vfs.is_dir(src) and not vfs.is_link(src)
                         if move:
-                            if isdir and vfs.is_dir(target):
+                            cross = not vfs.same_device(src, target)
+                            if cross or (isdir and vfs.is_dir(target)):
+                                # Копирование между устройствами (или слияние
+                                # каталогов) — показываем реальный прогресс,
+                                # а не замираем на rename внутри GIO.
+                                job.text = _('Calculating size…')
+                                job.fraction = None
                                 b, f = vfs.measure(src)
                                 job.bytes_total = b
                                 job.files_total = f
+                                job.text = name
                                 vfs.copy_with_progress(src, target, job, b, 0, name,
                                                        files_total=f)
                                 if job.cancelled:

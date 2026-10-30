@@ -512,6 +512,18 @@ def move(src, dst):
         remove(src)
 
 
+def same_device(src, dst):
+    """Лежат ли src и dst на одном устройстве (тогда move — это rename)."""
+    try:
+        if is_admin(src) or is_admin(dst):
+            return False
+        a = os.stat(src)
+        probe = dst if os.path.exists(dst) else (os.path.dirname(dst) or '.')
+        return a.st_dev == os.stat(probe).st_dev
+    except OSError:
+        return False
+
+
 def unique(path):
     if not exists(path):
         return path

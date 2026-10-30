@@ -6,7 +6,7 @@ from .utils import Item, dir_icon, icon_for, is_archive_name
 from .backend import needs_password
 from .icons import (FLAG_LINK, FLAG_NOREAD, FLAG_NOWRITE, badge_texture,
                     make_icon_pixbuf, square_pixbuf)
-from .theme import DENSITY_YPAD
+from .theme import PAL, DENSITY_YPAD
 from . import vfs
 from .dialogs import alert, hbox, lbl, pick_icon, set_margins, vbox
 
@@ -415,7 +415,7 @@ class Panel(Gtk.Box):
         col.pack_start(ri, False)
         col.pack_start(rt, True)
         col.set_cell_data_func(ri, self._icon_cell, 'list')
-        col.add_attribute(rt, 'text', C_NAME)
+        col.set_cell_data_func(rt, self._name_cell, 'list')
         col.set_resizable(True)
         col.set_expand(True)
         col.set_min_width(220)
@@ -470,6 +470,8 @@ class Panel(Gtk.Box):
     def _icon_cell(self, layout, cell, model, it, mode):
         """Значок в строке списка (плитки рисуются отдельными виджетами)."""
         icon = model.get_value(it, C_ICON)
+        cell.set_property('sensitive',
+                          not self.win.is_cut_path(model.get_value(it, C_FULL)))
         if icon is None:
             return
         size = self.icon_size_px('list')
@@ -589,6 +591,7 @@ class Panel(Gtk.Box):
             if tex is not None:
                 b.set_paintable(tex)
                 b.set_size_request(d, d)
+        parts.box.set_opacity(0.45 if self.win.is_cut_path(item.full) else 1.0)
 
     def _tile_at(self, x, y):
         """Плитка под точкой (x, y) сетки или None."""
@@ -606,6 +609,16 @@ class Panel(Gtk.Box):
     def _tiles_changed(self):
         self._tiles_dirty = True
         self._sync_tiles()
+
+    def refresh_cut(self):
+        """Показать вырезанные элементы приглушённо (как в файловых менеджерах)."""
+        if self.view_mode == 'tiles':
+            for full, lst in list(self._bound.items()):
+                op = 0.45 if self.win.is_cut_path(full) else 1.0
+                for parts in lst:
+                    parts.box.set_opacity(op)
+        else:
+            self.tree.queue_draw()
 
     def _sync_tiles(self, keep=None, reveal=True):
         """Пересобрать модель плиток по отсортированной модели таблицы (с сохранением выделения)."""
@@ -735,6 +748,14 @@ class Panel(Gtk.Box):
                 if parts.item is not None:
                     self._apply_tile(parts, parts.item, key[1])
         return False
+
+    def _name_cell(self, layout, cell, model, it, mode):
+        name = model.get_value(it, C_NAME) or ''
+        if self.win.is_cut_path(model.get_value(it, C_FULL)):
+            cell.set_property('markup', '<span foreground="%s">%s</span>'
+                              % (PAL['muted'], GLib.markup_escape_text(name)))
+        else:
+            cell.set_property('text', name)
 
     @staticmethod
     def _size_cell(col, cell, model, it, idx):

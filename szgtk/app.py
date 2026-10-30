@@ -24,6 +24,10 @@ class App(Gtk.Application):
         self.win = None          # последнее открытое окно
         self.conf = None
         self.sz = None
+        # Буфер обмена общий для всех окон: вырезать в одном окне и вставить
+        # в другом — обычный сценарий, состояние «вырезано» не должно теряться.
+        self.clipboard_data = None
+        self.clip_serial = 0
 
     def _backend(self):
         if self.conf is None:
