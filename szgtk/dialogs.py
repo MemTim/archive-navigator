@@ -279,12 +279,28 @@ def _duration_text(sec):
     return _('{0} s').format(sec)
 
 
+def _niri_session():
+    """niri размещает transient-окна относительно родителя, из-за чего окно
+    прогресса прыгает. Там его лучше сначала показать обычным плавающим окном
+    (niri центрирует его), а transient_for привязать уже после появления."""
+    if os.environ.get('XDG_SESSION_TYPE') != 'wayland':
+        return False
+    if os.environ.get('GDK_BACKEND') in ('x11', 'broadway'):
+        return False
+    return (bool(os.environ.get('NIRI_SOCKET'))
+            or 'niri' in os.environ.get('XDG_CURRENT_DESKTOP', '').lower())
+
+
 class ProgressDialog(DlgBase):
     def __init__(self, parent, title, job):
         # Не модальный: пока идёт операция, окно проводника должно оставаться
         # рабочим — можно выделять, открывать и перемещать файлы.
-        super().__init__(title=title, modal=False, transient_for=parent,
-                         resizable=False, destroy_with_parent=True)
+        self._parent_win = parent
+        self._attach_parent = bool(parent is not None and _niri_session())
+        super().__init__(title=title, modal=False,
+                         transient_for=None if self._attach_parent else parent,
+                         resizable=False,
+                         destroy_with_parent=not self._attach_parent)
         header = Gtk.HeaderBar()
         header.add_css_class('sz-prog-header')
         header.set_show_title_buttons(False)
@@ -296,6 +312,12 @@ class ProgressDialog(DlgBase):
         self._alive = True
         self._hidden_sidebar = False
         self._sidebar_ref = None
+        self._parent_destroy_id = 0
+        if self._attach_parent:
+            try:
+                self._parent_destroy_id = parent.connect('destroy', self._on_parent_destroy)
+            except Exception:
+                self._parent_destroy_id = 0
         self._samples = []
         self._rate = None
         self._eta = None
@@ -408,7 +430,21 @@ class ProgressDialog(DlgBase):
                 sidebar.remove_job_dialog(self)
             self._hidden_sidebar = False
         self._sidebar_ref = None
+        if self._parent_destroy_id and self._parent_win is not None:
+            try:
+                self._parent_win.disconnect(self._parent_destroy_id)
+            except Exception:
+                pass
+            self._parent_destroy_id = 0
         self._alive = False
+
+    def _on_parent_destroy(self, *a):
+        self._parent_win = None
+        self._parent_destroy_id = 0
+        if self._alive:
+            self.job.cancel()
+            GLib.idle_add(self.finish)
+        return False
 
     def _on_close(self, w):
         self.job.cancel()
@@ -417,13 +453,28 @@ class ProgressDialog(DlgBase):
     def _delayed_present(self):
         if self._alive and not self._hidden_sidebar:
             self.present()
+            if self._attach_parent:
+                GLib.timeout_add(80, self._attach_transient)
+        return False
+
+    def _attach_transient(self):
+        if not self._attach_parent:
+            return False
+        self._attach_parent = False
+        if not self._alive or self._hidden_sidebar or self._parent_win is None:
+            return False
+        try:
+            self.set_transient_for(self._parent_win)
+            self.set_destroy_with_parent(True)
+        except Exception:
+            pass
         return False
 
     def _sidebar(self):
         ref = getattr(self, '_sidebar_ref', None)
         if ref is not None:
             return ref
-        parent = self.get_transient_for()
+        parent = getattr(self, '_parent_win', None) or self.get_transient_for()
         sidebar = getattr(parent, 'sidebar', None)
         return sidebar if hasattr(sidebar, 'add_job_dialog') else None
 
@@ -441,6 +492,7 @@ class ProgressDialog(DlgBase):
         self._hidden_sidebar = True
         self._sidebar_ref = sidebar
         sidebar.add_job_dialog(self)
+        self._detach_transient()
         self.hide()
 
     def show_full(self):
@@ -452,7 +504,21 @@ class ProgressDialog(DlgBase):
             sidebar.remove_job_dialog(self)
         self._hidden_sidebar = False
         self._sidebar_ref = None
+        self._attach_parent = bool(self._parent_win is not None and _niri_session())
         self.present()
+        if self._attach_parent:
+            GLib.timeout_add(80, self._attach_transient)
+
+    def _detach_transient(self):
+        """Перед скрытием отвязать окно от родителя, чтобы niri снова
+        центрировал его при повторном показе, а не сдвигал к родителю."""
+        if not self._attach_parent and self.get_transient_for() is None:
+            return
+        try:
+            self.set_destroy_with_parent(False)
+            self.set_transient_for(None)
+        except Exception:
+            pass
 
     def progress_snapshot(self):
         """Данные для индикатора в боковой панели."""
