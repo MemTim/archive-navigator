@@ -148,13 +148,13 @@ class MainWindow(Gtk.ApplicationWindow):
             self.side_paned.set_end_child(right)
             self.side_paned.set_resize_start_child(False)
             self.side_paned.set_resize_end_child(True)
-            self.side_paned.set_shrink_start_child(False)
+            self.side_paned.set_shrink_start_child(True)
             self.side_paned.set_shrink_end_child(False)
             try:
                 width = int(self.conf.get('sidebar_width') or 220)
             except (TypeError, ValueError):
                 width = 220
-            self.side_paned.set_position(max(160, width))
+            self.side_paned.set_position(max(25, width))
             self.side_paned.connect('notify::position', self._on_side_paned_position)
             self.side_paned.connect('notify::max-position', self._on_side_max_position)
             root.append(self.side_paned)
@@ -438,6 +438,16 @@ class MainWindow(Gtk.ApplicationWindow):
                 if self._matches_accel('redo', keyval, state):
                     self.op_redo()
                     return True
+                # Ctrl+C/X/V работают, даже если фокус ушёл из списка файлов
+                # (например, после диалога): контекстное меню делало то же
+                # самое, а сочетания иногда не срабатывали.
+                for hid in ('copy-selection', 'cut-selection', 'paste'):
+                    if self._matches_accel(hid, keyval, state):
+                        act = self.lookup_action(hid)
+                        if act is not None and act.get_enabled():
+                            act.activate(None)
+                            return True
+                        return False
             return False
         if keyval == Gdk.KEY_Escape:
             m.close()
@@ -702,6 +712,8 @@ class MainWindow(Gtk.ApplicationWindow):
             b.add_css_class('flat')
             if primary:
                 b.add_css_class('sz-primary')
+            if cb == self.op_delete:
+                b.add_css_class('sz-danger')
             b.set_focus_on_click(False)
             box = hbox(8) if horiz else vbox(2)
             img = Gtk.Image.new_from_icon_name(icon)
@@ -2025,6 +2037,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     alert(self, _('Error'), getattr(e, 'message', e))
                     return
                 p.reload([name])
+                p.focus_view()
                 self._push_undo({'kind': 'new', 'path': path, 'folder': folder})
                 return
             a = p.arc
@@ -2045,6 +2058,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 if self.report(res, title):
                     self._sync_archive(a)
                     p.reload([name])
+                    p.focus_view()
             self.run7(title, 'a', ['-y'], [a.path, top], done, cwd=tmp, archive=a.path)
         PromptDialog(self, title, label, default, _('OK'), make).present()
 
@@ -2509,6 +2523,16 @@ class MainWindow(Gtk.ApplicationWindow):
         except (OSError, GLib.Error):
             pass
 
+    @staticmethod
+    def _same_item(src, target):
+        """Указывают ли пути на один и тот же объект (включая symlink-пути)."""
+        try:
+            if vfs.is_uri(src) or vfs.is_uri(target):
+                return vfs.uri(src).rstrip('/') == vfs.uri(target).rstrip('/')
+            return os.path.realpath(src) == os.path.realpath(target)
+        except (OSError, ValueError):
+            return os.path.normpath(src) == os.path.normpath(target)
+
     def fs_transfer(self, paths, dest, move, on_done=None, record=True):
         if not vfs.is_uri(dest):
             dest = os.path.abspath(os.path.expanduser(dest))
@@ -2521,7 +2545,13 @@ class MainWindow(Gtk.ApplicationWindow):
         except (OSError, GLib.Error) as e:
             alert(self, _('Error'), str(e))
             return
-        clash = [x for x in paths if vfs.exists(vfs.join(dest, vfs.basename(x.rstrip('/'))))]
+        clash = []
+        for item in paths:
+            target = vfs.join(dest, vfs.basename(item.rstrip('/')))
+            # Копия «в ту же папку» — не конфликт: она должна получить новое имя,
+            # как в Windows («файл (1).txt»), а не заменить оригинал.
+            if vfs.exists(target) and not self._same_item(item, target):
+                clash.append(item)
 
         def go(mode):
             pairs = []
@@ -2557,15 +2587,15 @@ class MainWindow(Gtk.ApplicationWindow):
                     if not total:
                         job.fraction = i / len(paths)
                     target = vfs.join(dest, vfs.basename(src.rstrip('/')))
-                    same = vfs.uri(src) == vfs.uri(target)
+                    same = self._same_item(src, target)
                     try:
                         created = not vfs.exists(target)
                         if vfs.exists(target):
-                            if mode == 'skip':
-                                continue
-                            if mode == 'rename' or same:
+                            if same or mode == 'rename':
                                 target = vfs.unique(target)
                                 created = True
+                            elif mode == 'skip':
+                                continue
                         isdir = vfs.is_dir(src) and not vfs.is_link(src)
                         if move:
                             cross = not vfs.same_device(src, target)
@@ -2938,6 +2968,11 @@ class MainWindow(Gtk.ApplicationWindow):
             self._sync_toolbar_labels()
         if self.sidebar is not None:
             self.sidebar.set_visible(not hs)
+            if not hs and self.side_paned is not None:
+                # Панель вернули (Ctrl+B или настройки) — если её «задвинули»
+                # до нуля, восстанавливаем последнюю рабочую ширину.
+                if self.side_paned.get_position() < 25:
+                    GLib.idle_add(self._restore_sidebar_width)
         for name, hidden in (('menu-bar', hm), ('toolbar', ht), ('panels-button', hb)):
             act = self.lookup_action(name)
             if act is not None:
@@ -3091,7 +3126,27 @@ class MainWindow(Gtk.ApplicationWindow):
                 return 0
         return int(width)
 
+    @staticmethod
+    def _sidebar_min_visible_width():
+        # Меньше этого разделитель считается «задвинутым до конца».
+        return 25
+
+    def _sidebar_saved_width(self):
+        try:
+            width = int(self.conf.get('sidebar_width') or 220)
+        except (TypeError, ValueError):
+            width = 220
+        return max(25, width)
+
+    def _restore_sidebar_width(self):
+        if self.side_paned is not None and self.sidebar is not None \
+                and self.sidebar.get_visible():
+            self.side_paned.set_position(self._sidebar_saved_width())
+        return False
+
     def _on_side_max_position(self, paned, _pspec):
+        if self.sidebar is not None and not self.sidebar.get_visible():
+            return
         # Когда окно/рабочая область стали шире, возвращаем выбранную ширину панели.
         try:
             desired = int(self.conf.get('sidebar_width') or 220)
@@ -3102,7 +3157,15 @@ class MainWindow(Gtk.ApplicationWindow):
             paned.set_position(desired)
 
     def _on_side_paned_position(self, paned, _pspec):
+        if self.sidebar is not None and not self.sidebar.get_visible():
+            return
         width = paned.get_position()
+        # Панель «задвинули» до конца — просто выключаем её. Вернуть можно
+        # кнопкой «Панели» или Ctrl+B, ширина при этом восстановится.
+        if 0 <= width < self._sidebar_min_visible_width():
+            if not self.conf.get('hide_sidebar'):
+                self.set_top_panels(hide_sidebar=True)
+            return
         try:
             desired = int(self.conf.get('sidebar_width') or 0)
         except (TypeError, ValueError):

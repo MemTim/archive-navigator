@@ -594,7 +594,7 @@ class PropertiesDialog(DlgBase):
         bottom.set_halign(Gtk.Align.END)
         close = Gtk.Button(label=_('Close'))
         close.add_css_class('sz-dlg-ok')
-        close.add_css_class('suggested-action')
+        close.add_css_class('sz-danger')
         close.connect('clicked', lambda b: self.close())
         bottom.append(close)
         root.append(bottom)

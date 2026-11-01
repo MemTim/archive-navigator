@@ -4,8 +4,8 @@ from urllib.parse import unquote
 from .i18n import _, N_
 from . import diagnostics
 from . import vfs
-from .dialogs import (alert, button_row, grid_row, hbox, lbl, make_dd,
-                      new_dialog, pick_icon, PromptDialog, vbox)
+from .dialogs import (alert, button_row, confirm, grid_row, hbox, lbl,
+                      make_dd, new_dialog, pick_icon, PromptDialog, vbox)
 from .favorites import name as fav_name, path as fav_path
 from .settings import (_drawing, _fav_sort_icon, _menu_eye_closed,
                        _menu_eye_open)
@@ -111,12 +111,16 @@ def sidebar_groups(conf):
             group['hidden'] = True
         seen.add(group['id'])
         out.append(group)
-    for default in DEFAULT_GROUPS:
-        if default['id'] in seen:
-            continue
-        group = dict(default)
-        group['hidden'] = group['id'] in legacy_hidden
-        out.append(group)
+    # Старые конфиги хранили только список идентификаторов, а новый формат —
+    # словари с флагами. Дополняем стандартными группами только старый формат:
+    # удалённые пользователем группы не должны возвращаться после перезапуска.
+    if not any(isinstance(item, dict) for item in raw):
+        for default in DEFAULT_GROUPS:
+            if default['id'] in seen:
+                continue
+            group = dict(default)
+            group['hidden'] = group['id'] in legacy_hidden
+            out.append(group)
     return out
 
 
@@ -308,7 +312,6 @@ class Sidebar(Gtk.Box):
             self._monitor = None
         self.add_css_class('sz-sidebar')
         self.set_hexpand(False)
-        self.set_size_request(160, -1)
         sw = Gtk.ScrolledWindow(vexpand=True)
         sw.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.scroll = sw
@@ -327,8 +330,23 @@ class Sidebar(Gtk.Box):
         self.add_group_btn.set_tooltip_text(_('New group'))
         self.add_group_btn.update_property([Gtk.AccessibleProperty.LABEL], [_('New group')])
         self.add_group_btn.connect('clicked', self._add_group)
+        self.add_group_btn.set_hexpand(True)
         self.add_group_btn.set_visible(False)
-        self.append(self.add_group_btn)
+        self.reset_group_btn = Gtk.Button()
+        self.reset_group_btn.add_css_class('flat')
+        self.reset_group_btn.add_css_class('sz-side-reset')
+        self.reset_group_btn.set_child(Gtk.Image.new_from_icon_name(
+            'edit-undo-symbolic'))
+        self.reset_group_btn.set_tooltip_text(_('Reset groups'))
+        self.reset_group_btn.update_property(
+            [Gtk.AccessibleProperty.LABEL], [_('Reset groups')])
+        self.reset_group_btn.connect('clicked', self._reset_groups_ask)
+        self.reset_group_btn.set_visible(False)
+        self.group_tools = hbox(6)
+        self.group_tools.append(self.add_group_btn)
+        self.group_tools.append(self.reset_group_btn)
+        self.group_tools.set_visible(False)
+        self.append(self.group_tools)
         card = hbox(8)
         card.add_css_class('sz-usercard')
         info = vbox(2)
@@ -338,6 +356,7 @@ class Sidebar(Gtk.Box):
             name = GLib.get_user_name()
         n = lbl(name)
         n.add_css_class('sz-hdr-role')
+        n.set_ellipsize(Pango.EllipsizeMode.END)
         p = lbl(os.path.expanduser('~'))
         p.add_css_class('sz-muted')
         p.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
@@ -386,7 +405,9 @@ class Sidebar(Gtk.Box):
     def _toggle_edit(self, *a):
         self.editing = not self.editing
         self.picked = None
+        self.group_tools.set_visible(self.editing)
         self.add_group_btn.set_visible(self.editing)
+        self.reset_group_btn.set_visible(self.editing)
         self._sync_edit_btn()
         self.rebuild()
 
@@ -512,6 +533,7 @@ class Sidebar(Gtk.Box):
             btns.set_halign(Gtk.Align.END)
             stop = Gtk.Button(label=_('Stop'))
             stop.add_css_class('sz-job-stop')
+            stop.add_css_class('sz-danger')
             stop.connect('clicked', lambda b, d=dlg: d.job.cancel())
             show = Gtk.Button()
             show.add_css_class('sz-job-show')
@@ -704,6 +726,7 @@ class Sidebar(Gtk.Box):
         delete = Gtk.Button(label=_('Delete group'))
         delete.add_css_class('flat')
         delete.add_css_class('sz-menu-item')
+        delete.add_css_class('sz-danger')
         delete.set_halign(Gtk.Align.FILL)
         delete.set_margin_top(4)
 
@@ -793,6 +816,20 @@ class Sidebar(Gtk.Box):
         self.groups = rest
         self.group_order = [g['id'] for g in rest]
         self._save_groups()
+        self.rebuild()
+
+    def _reset_groups_ask(self, *a):
+        confirm(self.win, _('Reset sidebar groups?'),
+                _('Custom groups will be removed and the standard groups restored.'),
+                _('Reset'), self._reset_groups)
+
+    def _reset_groups(self):
+        self.groups = [dict(group) for group in DEFAULT_GROUPS]
+        self.group_order = [group['id'] for group in self.groups]
+        self.place_group = {}
+        self.fav_group = {}
+        self._save_groups()
+        self._save_layout()
         self.rebuild()
 
     def _group_drag_begin(self, gesture, start_x, start_y, group_id):
@@ -1915,9 +1952,12 @@ class Sidebar(Gtk.Box):
         row.append(Gtk.Image.new_from_icon_name(
             pick_icon('network-server-symbolic', 'network-workgroup-symbolic',
                       'folder-remote-symbolic')))
-        row.append(lbl(_('Connect to server…')))
+        label = lbl(_('Connect to server'))
+        label.set_hexpand(True)
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        row.append(label)
         button.set_child(row)
-        button.set_tooltip_text(_('Connect to server…'))
+        button.set_tooltip_text(_('Connect to server'))
         button.connect('clicked', lambda x: self._network_dialog())
         self.inner.append(button)
 

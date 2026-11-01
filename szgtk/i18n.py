@@ -239,6 +239,10 @@ RU.update({
     'Edit group': 'Изменить группу',
     'Double-click to rename the group': 'Двойной щелчок — переименовать группу',
     'Drag items here': 'Перетащите сюда элементы',
+    'Reset groups': 'Сбросить группы',
+    'Reset sidebar groups?': 'Сбросить группы боковой панели?',
+    'Custom groups will be removed and the standard groups restored.':
+        'Свои группы будут удалены, стандартные — восстановлены.',
     'File system': 'Файловая система', 'switch panel': 'сменить панель', 'open': 'открыть', 'up': 'вверх',
     'to the parent folder': 'на уровень выше', 'Filter by name…': 'Фильтр по имени…',
     'Selected: {0} · {1} bytes': 'Выбрано: {0} · {1} байт', 'Selected: {0}': 'Выбрано: {0}',

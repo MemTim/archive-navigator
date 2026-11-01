@@ -30,9 +30,11 @@ class BenchmarkDialog(DlgBase):
         self.b_start.add_css_class('suggested-action')
         self.b_start.connect('clicked', self._start)
         self.b_stop = Gtk.Button(label=_('Stop'))
+        self.b_stop.add_css_class('sz-danger')
         self.b_stop.set_sensitive(False)
         self.b_stop.connect('clicked', lambda b: self._stop())
         cl = Gtk.Button(label=_('Close'))
+        cl.add_css_class('sz-danger')
         cl.connect('clicked', lambda b: self.close())
         for w in (self.b_start, self.b_stop, cl):
             row.append(w)

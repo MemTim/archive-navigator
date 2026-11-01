@@ -930,16 +930,25 @@ class Panel(Gtk.Box):
         first = None
         for row in self.sorted:
             if row[C_NAME] in keep:
-                self._select_path(row.path)
-                if first is None:
-                    first = row.path.copy()
-        if first is not None and scroll:
+                first = row.path.copy()
+                break
+        if first is not None:
+            # Курсор тоже ставим на выбранный элемент: Enter открывает именно
+            # его (иначе после создания папки можно уйти в чужой каталог).
             if self.view_mode == 'tiles':
                 idx = first.get_indices()[0]
-                if 0 <= idx < self.tile_store.get_n_items():
+                if scroll and 0 <= idx < self.tile_store.get_n_items():
                     self._scroll_tile_to(self.tile_store.get_item(idx).name)
             else:
-                self.tree.scroll_to_cell(first, None, False, 0.0, 0.0)
+                try:
+                    self.tree.set_cursor(first, None, False)
+                except Exception:
+                    pass
+                if scroll:
+                    self.tree.scroll_to_cell(first, None, False, 0.0, 0.0)
+        for row in self.sorted:
+            if row[C_NAME] in keep:
+                self._select_path(row.path)
 
     def _on_mapped(self, w):
         """Панель показана: собрать плитки, отложенные в fill()."""

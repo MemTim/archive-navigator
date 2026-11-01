@@ -144,6 +144,13 @@ BASE_CSS = """
 .sz-side-add-group:hover { background: alpha(currentColor, 0.08); }
 .sz-side-add-group.sz-side-drop { background: alpha(currentColor, 0.16);
   box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
+.sz-side-reset { padding: 6px; min-width: 30px; min-height: 30px; margin: 6px 0 2px 0;
+  border-radius: 6px; background: transparent;
+  border: 1px dashed alpha(currentColor, 0.35); box-shadow: none; }
+.sz-side-reset:hover { background: alpha(currentColor, 0.08); }
+.sz-danger { color: #E01B24; }
+.sz-danger:hover { background: alpha(#E01B24, 0.14); }
+.sz-danger:disabled { color: alpha(#E01B24, 0.5); }
 .sz-side-handle { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px; }
 .sz-side-eye { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
@@ -377,6 +384,11 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-side-add-group:hover { background: alpha($text, 0.06); }
 .sz-midnight .sz-side-add-group.sz-side-drop { background: alpha($focus, 0.18);
   box-shadow: inset 0 0 0 2px $focus; }
+.sz-midnight .sz-side-reset { color: $muted; border-color: alpha($muted, 0.6); }
+.sz-midnight .sz-side-reset:hover { background: alpha($text, 0.06); }
+.sz-midnight .sz-danger { color: #F20D14; }
+.sz-midnight .sz-danger:hover { background: alpha(#F20D14, 0.16); }
+.sz-midnight .sz-danger:disabled { color: alpha(#F20D14, 0.5); }
 .sz-midnight .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px $focus; }
 .sz-midnight .sz-menu-row.sz-menu-selected { background-color: alpha($focus, 0.16);
   box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
