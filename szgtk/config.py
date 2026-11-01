@@ -26,11 +26,20 @@ class Config(dict):
         'typeahead': True, 'typeahead_timeout': 1000,
         # контекстное меню: порядок, скрытые пункты и ситуации показа
         'menu_layout': [], 'menu_hidden': [], 'menu_contexts': {},
-        # боковая панель: порядок, скрытые группы/пункты и ширина
-        'sidebar_groups': ['places', 'favorites', 'devices'], 'sidebar_hidden': [],
+        # боковая панель: группы с флагами, порядок, скрытые пункты и ширина
+        'sidebar_groups': [
+            {'id': 'places', 'type': 'places', 'title': '', 'hidden': False},
+            {'id': 'favorites', 'type': 'favorites', 'title': '', 'hidden': False},
+            {'id': 'devices', 'type': 'devices', 'title': '', 'hidden': False},
+            {'id': 'network', 'type': 'network', 'title': '', 'hidden': False},
+        ],
+        'sidebar_hidden': [],
         'sidebar_places': ['home', 'desktop', 'downloads', 'documents',
                            'pictures', 'music', 'videos'],
         'sidebar_hidden_places': [],
+        'sidebar_place_groups': {},
+        'sidebar_fav_groups': {},
+        'sidebar_fav_order': [],
         'sidebar_width': 220,
         # последнее сетевое подключение (протокол и адрес для диалога)
         'network_last': {},

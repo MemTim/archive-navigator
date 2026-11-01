@@ -129,6 +129,21 @@ BASE_CSS = """
 /* Компактные строки боковой панели в режиме редактирования: ручка и «глаз»
    не должны делать плитку выше обычного пункта. */
 .sz-side-edit-row { padding: 5px 10px; margin: 0; min-height: 0; }
+.sz-side-name { font-size: 100%; font-weight: 400; opacity: 1; }
+.sz-side-edit-row:hover { background: alpha(currentColor, 0.08); }
+.sz-side-edit-row.sz-side-picked { background: alpha(currentColor, 0.14);
+  box-shadow: inset 0 0 0 1px alpha(currentColor, 0.45); }
+.sz-side-edit-row.sz-side-drop { background: alpha(currentColor, 0.12);
+  box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
+.sz-side-group-row { border-radius: 6px; }
+.sz-side-group-row:hover { background: alpha(currentColor, 0.06); }
+.sz-side-group-row.sz-side-drop { background: alpha(currentColor, 0.16);
+  box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
+.sz-side-add-group { padding: 6px 10px; margin: 6px 0 2px 0; border-radius: 6px;
+  background: transparent; border: 1px dashed alpha(currentColor, 0.35); box-shadow: none; }
+.sz-side-add-group:hover { background: alpha(currentColor, 0.08); }
+.sz-side-add-group.sz-side-drop { background: alpha(currentColor, 0.16);
+  box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
 .sz-side-handle { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px; }
 .sz-side-eye { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
@@ -352,6 +367,16 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-conv-dd > button:hover { background-color: #3C3958; }
 .sz-midnight .sz-conv-dd > button:focus { border-color: $focus; }
 .sz-midnight .sz-menu-row.sz-menu-dragging { background-color: #49475F; }
+.sz-midnight .sz-side-edit-row:hover { background: alpha($text, 0.07); }
+.sz-midnight .sz-side-edit-row.sz-side-picked { background: alpha($focus, 0.16);
+  box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
+.sz-midnight .sz-side-edit-row.sz-side-drop,
+.sz-midnight .sz-side-group-row.sz-side-drop { background: alpha($focus, 0.18);
+  box-shadow: inset 0 0 0 2px $focus; }
+.sz-midnight .sz-side-add-group { color: $muted; border-color: alpha($muted, 0.6); }
+.sz-midnight .sz-side-add-group:hover { background: alpha($text, 0.06); }
+.sz-midnight .sz-side-add-group.sz-side-drop { background: alpha($focus, 0.18);
+  box-shadow: inset 0 0 0 2px $focus; }
 .sz-midnight .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px $focus; }
 .sz-midnight .sz-menu-row.sz-menu-selected { background-color: alpha($focus, 0.16);
   box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }

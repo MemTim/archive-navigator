@@ -5,7 +5,7 @@ from .i18n import _, N_
 from . import diagnostics
 from . import vfs
 from .dialogs import (alert, button_row, grid_row, hbox, lbl, make_dd,
-                      new_dialog, pick_icon, vbox)
+                      new_dialog, pick_icon, PromptDialog, vbox)
 from .favorites import name as fav_name, path as fav_path
 from .settings import (_drawing, _fav_sort_icon, _menu_eye_closed,
                        _menu_eye_open)
@@ -45,27 +45,79 @@ NETWORK_PROTOCOLS = (
     ('afp', 'AFP'),
 )
 
-SIDEBAR_GROUPS = [
-    ('places', N_('PLACES')),
-    ('favorites', N_('FAVORITES')),
-    ('devices', N_('DEVICES')),
+# Флаги (типы) групп боковой панели. Флаг решает, что группа показывает:
+# места, избранное, устройства, сетевые диски или только перетащенные в неё
+# элементы.
+GROUP_TYPES = [
+    ('places', N_('Places')),
+    ('favorites', N_('Favorites')),
+    ('devices', N_('Devices')),
+    ('network', N_('Network drives')),
+    ('custom', N_('Custom group')),
 ]
-SIDEBAR_LABELS = dict(SIDEBAR_GROUPS)
-SIDEBAR_IDS = tuple(group_id for group_id, _label in SIDEBAR_GROUPS)
+GROUP_TYPE_NAMES = dict(GROUP_TYPES)
+GROUP_TYPE_TITLES = {
+    'places': N_('PLACES'),
+    'favorites': N_('FAVORITES'),
+    'devices': N_('DEVICES'),
+    'network': N_('NETWORK'),
+    'custom': N_('GROUP'),
+}
+DEFAULT_GROUPS = [
+    {'id': 'places', 'type': 'places', 'title': '', 'hidden': False},
+    {'id': 'favorites', 'type': 'favorites', 'title': '', 'hidden': False},
+    {'id': 'devices', 'type': 'devices', 'title': '', 'hidden': False},
+    {'id': 'network', 'type': 'network', 'title': '', 'hidden': False},
+]
 
 
-def groups(conf):
-    """Порядок групп боковой панели, дополненный новыми группами."""
+def group_type(group):
+    return group.get('type') if group.get('type') in GROUP_TYPE_NAMES else 'custom'
+
+
+def group_title(group):
+    """Подпись группы: пользовательская или по её флагу."""
+    title = str(group.get('title') or '').strip()
+    if title:
+        return title
+    return _(GROUP_TYPE_TITLES.get(group_type(group), N_('GROUP')))
+
+
+def _normalize_group(item):
+    if isinstance(item, str):
+        gtype = item if item in GROUP_TYPE_NAMES else 'custom'
+        return {'id': item, 'type': gtype, 'title': '', 'hidden': False}
+    if not isinstance(item, dict):
+        return None
+    group_id = str(item.get('id') or '').strip()
+    if not group_id:
+        return None
+    return {'id': group_id,
+            'type': item.get('type') if item.get('type') in GROUP_TYPE_NAMES else 'custom',
+            'title': str(item.get('title') or ''),
+            'hidden': bool(item.get('hidden'))}
+
+
+def sidebar_groups(conf):
+    """Группы боковой панели с флагами и пользовательскими названиями."""
     raw = conf.get('sidebar_groups') or []
-    order, seen = [], set()
-    for group_id in raw:
-        if group_id in SIDEBAR_LABELS and group_id not in seen:
-            order.append(group_id)
-            seen.add(group_id)
-    for group_id in SIDEBAR_IDS:
-        if group_id not in seen:
-            order.append(group_id)
-    return order
+    legacy_hidden = set(conf.get('sidebar_hidden') or [])
+    out, seen = [], set()
+    for item in raw:
+        group = _normalize_group(item)
+        if group is None or group['id'] in seen:
+            continue
+        if group['id'] in legacy_hidden:
+            group['hidden'] = True
+        seen.add(group['id'])
+        out.append(group)
+    for default in DEFAULT_GROUPS:
+        if default['id'] in seen:
+            continue
+        group = dict(default)
+        group['hidden'] = group['id'] in legacy_hidden
+        out.append(group)
+    return out
 
 
 def place_order(conf):
@@ -110,10 +162,31 @@ def special_places():
     return [(icon, label, path) for _place_id, icon, label, path in all_places()]
 
 
-def hidden_groups(conf):
-    """Множество скрытых групп боковой панели."""
-    return {group_id for group_id in (conf.get('sidebar_hidden') or [])
-            if group_id in SIDEBAR_LABELS}
+def place_groups(conf):
+    """Какая группа содержит каждый пункт «Места»."""
+    raw = conf.get('sidebar_place_groups') or {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): str(value) for key, value in raw.items() if value}
+
+
+def favorite_groups(conf):
+    """Какая группа содержит каждое избранное (по пути)."""
+    raw = conf.get('sidebar_fav_groups') or {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): str(value) for key, value in raw.items() if value}
+
+
+def favorite_order(conf):
+    """Пользовательский порядок избранного."""
+    raw = conf.get('sidebar_fav_order') or []
+    out, seen = [], set()
+    for path in raw:
+        if path and path not in seen:
+            out.append(path)
+            seen.add(path)
+    return out
 
 
 def _volume_monitor():
@@ -195,17 +268,23 @@ class Sidebar(Gtk.Box):
     def __init__(self, win):
         super().__init__(orientation=V)
         self.win, self.items = win, []
-        self.group_order = groups(win.conf)
-        self.hidden = hidden_groups(win.conf)
+        self.groups = sidebar_groups(win.conf)
+        self.group_order = [group['id'] for group in self.groups]
         self.group_rows = []
         self.group_drag_id = None
         self.group_drop = None
         self.place_order = place_order(win.conf)
         self.place_hidden = hidden_places(win.conf)
+        self.place_group = place_groups(win.conf)
+        self.fav_order = favorite_order(win.conf)
+        self.fav_group = favorite_groups(win.conf)
         self.place_rows = []
-        self.place_drag_id = None
-        self.place_drop = None
+        self.fav_rows = []
+        self.picked = None
         self.editing = False
+        self._group_popup = None
+        self._drag = None
+        self._drop = None
         self._alive = True
         self._devices_id = 0
         self._monitor = None
@@ -238,6 +317,18 @@ class Sidebar(Gtk.Box):
         self.inner.set_margin_end(8)
         sw.set_child(self.inner)
         self.append(sw)
+        self.add_group_btn = Gtk.Button()
+        self.add_group_btn.add_css_class('flat')
+        self.add_group_btn.add_css_class('sz-side-add-group')
+        add_row = hbox(8)
+        add_row.append(Gtk.Image.new_from_icon_name('list-add-symbolic'))
+        add_row.append(lbl(_('New group')))
+        self.add_group_btn.set_child(add_row)
+        self.add_group_btn.set_tooltip_text(_('New group'))
+        self.add_group_btn.update_property([Gtk.AccessibleProperty.LABEL], [_('New group')])
+        self.add_group_btn.connect('clicked', self._add_group)
+        self.add_group_btn.set_visible(False)
+        self.append(self.add_group_btn)
         card = hbox(8)
         card.add_css_class('sz-usercard')
         info = vbox(2)
@@ -294,6 +385,8 @@ class Sidebar(Gtk.Box):
 
     def _toggle_edit(self, *a):
         self.editing = not self.editing
+        self.picked = None
+        self.add_group_btn.set_visible(self.editing)
         self._sync_edit_btn()
         self.rebuild()
 
@@ -501,17 +594,34 @@ class Sidebar(Gtk.Box):
                     label.set_text(text)
             sec['stop'].set_sensitive(not snap['cancelled'])
 
-    def _group_header(self, group_id):
-        hidden = group_id in self.hidden
-        row = hbox(6)
+    # ───────────── группы и плитки в режиме редактирования ─────────────
+    def _find_group(self, group_id):
+        for group in self.groups:
+            if group['id'] == group_id:
+                return group
+        return None
+
+    def _default_group_id(self, gtype):
+        for group in self.groups:
+            if group_type(group) == gtype:
+                return group['id']
+        return self.group_order[0] if self.group_order else None
+
+    def _group_header(self, group):
+        group_id = group['id']
+        hidden = bool(group.get('hidden'))
+        row = hbox(4)
         row.add_css_class('sz-side-section-row')
-        if hidden:
-            row.add_css_class('sz-menu-hidden')
-        label = lbl(_(SIDEBAR_LABELS[group_id]))
+        row.add_css_class('sz-side-group-row')
+        label = lbl(group_title(group))
         label.add_css_class('sz-section')
         label.add_css_class('sz-side-group-label')
         label.set_hexpand(True)
         label.set_ellipsize(Pango.EllipsizeMode.END)
+        label.set_tooltip_text(_('Double-click to rename the group'))
+        click = Gtk.GestureClick()
+        click.connect('pressed', lambda g, n, x, y, gr=group: self._group_label_pressed(g, n, gr))
+        label.add_controller(click)
         handle = Gtk.DrawingArea()
         handle.set_content_width(16)
         handle.set_content_height(16)
@@ -534,11 +644,156 @@ class Sidebar(Gtk.Box):
         eye.set_tooltip_text(_('Show') if hidden else _('Hide'))
         eye.update_property([Gtk.AccessibleProperty.LABEL], [eye.get_tooltip_text()])
         eye.connect('clicked', lambda b, g=group_id: self._toggle_group(g))
+        more = Gtk.Button.new_from_icon_name('view-more-symbolic')
+        more.add_css_class('flat')
+        more.add_css_class('sz-menu-more')
+        more.set_focus_on_click(False)
+        more.set_tooltip_text(_('Edit group'))
+        more.update_property([Gtk.AccessibleProperty.LABEL], [_('Edit group')])
+        more.connect('clicked', lambda b, gr=group: self._group_menu(gr, b))
         row.append(label)
         row.append(handle)
         row.append(eye)
-        self.group_rows.append({'id': group_id, 'row': row, 'eye': eye})
+        row.append(more)
+        self.group_rows.append({'id': group_id, 'row': row, 'eye': eye, 'group': group})
         self.inner.append(row)
+
+    def _group_label_pressed(self, gesture, n_press, group):
+        if n_press == 2:
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+            self._rename_group(group)
+
+    def _group_menu(self, group, button):
+        if self._group_popup is not None:
+            self._group_popup.popdown()
+            self._group_popup = None
+        pop = Gtk.Popover()
+        pop.add_css_class('sz-menu')
+        box = vbox(6)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+        box.set_size_request(240, -1)
+        title = lbl(group_title(group))
+        title.add_css_class('sz-menu-label')
+        title.set_ellipsize(Pango.EllipsizeMode.END)
+        box.append(title)
+        rename = Gtk.Button(label=_('Rename group') + '…')
+        rename.add_css_class('flat')
+        rename.add_css_class('sz-menu-item')
+        rename.set_halign(Gtk.Align.FILL)
+
+        def do_rename(b):
+            pop.popdown()
+            self._rename_group(group)
+        rename.connect('clicked', do_rename)
+        box.append(rename)
+        flag_row = hbox(8)
+        flag_row.set_margin_top(4)
+        flag_row.append(lbl(_('Group flag') + ':'))
+        types = [gtype for gtype, _name in GROUP_TYPES]
+        dd = make_dd([_(GROUP_TYPE_NAMES[gtype]) for gtype in types],
+                     types.index(group_type(group)))
+        dd.set_hexpand(True)
+        dd.connect('notify::selected',
+                   lambda d, pspec, ts=types, gid=group['id']:
+                   self._set_group_type(gid, ts[d.get_selected()]))
+        flag_row.append(dd)
+        box.append(flag_row)
+        delete = Gtk.Button(label=_('Delete group'))
+        delete.add_css_class('flat')
+        delete.add_css_class('sz-menu-item')
+        delete.set_halign(Gtk.Align.FILL)
+        delete.set_margin_top(4)
+
+        def do_delete(b):
+            pop.popdown()
+            self._delete_group(group['id'])
+        delete.connect('clicked', do_delete)
+        box.append(delete)
+        pop.set_child(box)
+        pop.set_parent(button)
+        pop.connect('closed', self._on_group_popup_closed)
+        self._group_popup = pop
+        pop.popup()
+
+    def _on_group_popup_closed(self, pop):
+        if self._group_popup is pop:
+            self._group_popup = None
+        if pop.get_parent() is not None:
+            pop.unparent()
+
+    def _set_group_type(self, group_id, gtype):
+        group = self._find_group(group_id)
+        if group is None or group_type(group) == gtype:
+            return
+        if self._group_popup is not None:
+            pop, self._group_popup = self._group_popup, None
+            pop.popdown()
+        group['type'] = gtype
+        self._save_groups()
+        self.rebuild()
+
+    def _rename_group(self, group):
+        group_id = group['id']
+        default = str(group.get('title') or '') or group_title(group)
+
+        def done(name):
+            group = self._find_group(group_id)
+            if group is None:
+                return
+            name = (name or '').strip()
+            builtin = _(GROUP_TYPE_TITLES.get(group_type(group), N_('GROUP')))
+            group['title'] = '' if not name or name == builtin else name
+            self._save_groups()
+            self.rebuild()
+        PromptDialog(self.win, _('Rename group'), _('Name:'), default,
+                     _('OK'), done).present()
+
+    def _new_group(self, title=''):
+        numbers = []
+        for group in self.groups:
+            tail = group['id'].rsplit('-', 1)[-1]
+            if tail.isdigit():
+                numbers.append(int(tail))
+        number = max(numbers, default=0) + 1
+        group_id = 'group-%d' % number
+        if not title:
+            title = _('Group {0}').format(number)
+        self.groups.append({'id': group_id, 'type': 'custom',
+                            'title': title, 'hidden': False})
+        self.group_order = [group['id'] for group in self.groups]
+        return group_id
+
+    def _add_group(self, *a):
+        def done(name):
+            name = (name or '').strip()
+            if not name:
+                return
+            self._new_group(name)
+            self._save_groups()
+            self.rebuild()
+        PromptDialog(self.win, _('New group'), _('Name:'), _('New group'),
+                     _('OK'), done).present()
+
+    def _delete_group(self, group_id):
+        group = self._find_group(group_id)
+        if group is None or len(self.groups) <= 1:
+            return
+        rest = [g for g in self.groups if g['id'] != group_id]
+        fallback = next((g['id'] for g in rest
+                         if group_type(g) == group_type(group)), rest[0]['id'])
+        for place_id, gid in list(self.place_group.items()):
+            if gid == group_id:
+                self.place_group[place_id] = fallback
+        for path, gid in list(self.fav_group.items()):
+            if gid == group_id:
+                self.fav_group[path] = fallback
+        self.groups = rest
+        self.group_order = [g['id'] for g in rest]
+        self._save_groups()
+        self.rebuild()
 
     def _group_drag_begin(self, gesture, start_x, start_y, group_id):
         self.group_drag_id = group_id
@@ -586,43 +841,68 @@ class Sidebar(Gtk.Box):
             return
         order.remove(src_id)
         order.insert(order.index(dst_id) + (1 if after else 0), src_id)
+        by_id = {group['id']: group for group in self.groups}
         self.group_order = order
+        self.groups = [by_id[group_id] for group_id in order if group_id in by_id]
         self._save_groups()
         self.rebuild()
 
     def _toggle_group(self, group_id):
-        if group_id in self.hidden:
-            self.hidden.discard(group_id)
-        else:
-            self.hidden.add(group_id)
+        group = self._find_group(group_id)
+        if group is None:
+            return
+        group['hidden'] = not group.get('hidden')
         self._save_groups()
         self.rebuild()
 
     def _save_groups(self):
-        self.win.conf['sidebar_groups'] = list(self.group_order)
-        self.win.conf['sidebar_hidden'] = [group_id for group_id in self.group_order
-                                           if group_id in self.hidden]
-        self.win.conf.save()
+        conf = self.win.conf
+        conf['sidebar_groups'] = [dict(group) for group in self.groups]
+        conf['sidebar_hidden'] = [group['id'] for group in self.groups
+                                  if group.get('hidden')]
+        conf.save()
         app = self.win.get_application()
         for w in (getattr(app, 'wins', None) or []):
             sb = getattr(w, 'sidebar', None)
             if sb is not None and sb is not self:
                 sb.sync_groups()
 
-    def _place_row(self, place_id, icon, label, path):
-        hidden = place_id in self.place_hidden
-        row = hbox(6)
+    def _place_group_id(self, place_id):
+        gid = self.place_group.get(place_id)
+        return gid if gid in self.group_order else self._default_group_id('places')
+
+    def _favorite_group_id(self, path):
+        gid = self.fav_group.get(path)
+        return gid if gid in self.group_order else self._default_group_id('favorites')
+
+    def _favorite_entries(self):
+        """Избранное в пользовательском порядке: [(путь, название)]."""
+        conf = self.win.conf
+        favs = conf.get('favorites') or {}
+        pairs, seen = [], set()
+        for key in sorted(favs, key=lambda x: int(x) if str(x).isdigit() else 99):
+            path = fav_path(favs[key])
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            pairs.append((path, fav_name(favs[key])))
+        by_path = dict(pairs)
+        ordered = [(path, by_path[path]) for path in self.fav_order if path in by_path]
+        ordered += [(path, name) for path, name in pairs if path not in set(self.fav_order)]
+        return ordered
+
+    def _tile_row(self, kind, item_id, icon, label, path, group_id, hidden=False):
+        row = hbox(4)
         row.add_css_class('sz-menu-item')
         row.add_css_class('sz-menu-row')
         row.add_css_class('sz-side-edit-row')
         row.add_css_class('sz-side-place-row')
-        if hidden:
-            row.add_css_class('sz-menu-hidden')
         img = Gtk.Image.new_from_icon_name(icon)
         img.set_pixel_size(16)
         row.append(img)
         text = lbl(label)
-        text.add_css_class('sz-side-group-label')
+        # Обычный размер и цвет, как у плитки вне режима правки.
+        text.add_css_class('sz-side-name')
         text.set_hexpand(True)
         text.set_ellipsize(Pango.EllipsizeMode.END)
         handle = Gtk.DrawingArea()
@@ -635,72 +915,149 @@ class Sidebar(Gtk.Box):
         handle.update_property([Gtk.AccessibleProperty.LABEL], [_('Drag to reorder')])
         handle.set_cursor(Gdk.Cursor.new_from_name('grab'))
         drag = Gtk.GestureDrag()
-        drag.connect('drag-begin', self._place_drag_begin, place_id)
-        drag.connect('drag-update', self._place_drag_update, place_id)
-        drag.connect('drag-end', self._place_drag_end, place_id)
+        drag.connect('drag-begin', self._tile_drag_begin, kind, item_id)
+        drag.connect('drag-update', self._tile_drag_update, kind, item_id)
+        drag.connect('drag-end', self._tile_drag_end, kind, item_id)
         handle.add_controller(drag)
-        eye = Gtk.Button()
-        eye.add_css_class('sz-menu-eye')
-        eye.add_css_class('sz-side-eye')
-        eye.set_child(_drawing(16, 16, _menu_eye_closed if hidden else _menu_eye_open,
-                               'sz-menu-eye-icon'))
-        eye.set_tooltip_text(_('Show') if hidden else _('Hide'))
-        eye.update_property([Gtk.AccessibleProperty.LABEL], [eye.get_tooltip_text()])
-        eye.connect('clicked', lambda b, p=place_id: self._toggle_place(p))
         row.append(text)
         row.append(handle)
-        row.append(eye)
-        self.place_rows.append({'id': place_id, 'row': row, 'eye': eye})
+        eye = None
+        if kind == 'place':
+            eye = Gtk.Button()
+            eye.add_css_class('sz-menu-eye')
+            eye.add_css_class('sz-side-eye')
+            eye.set_child(_drawing(16, 16, _menu_eye_closed if hidden else _menu_eye_open,
+                                   'sz-menu-eye-icon'))
+            eye.set_tooltip_text(_('Show') if hidden else _('Hide'))
+            eye.update_property([Gtk.AccessibleProperty.LABEL], [eye.get_tooltip_text()])
+            eye.connect('clicked', lambda b, p=item_id: self._toggle_place(p))
+            row.append(eye)
+        pick = Gtk.GestureClick()
+        pick.connect('pressed', lambda g, n, x, y, k=kind, i=item_id:
+                     self._pick_tile(k, i) if n == 1 else None)
+        row.add_controller(pick)
+        entry = {'id': item_id, 'kind': kind, 'group': group_id, 'row': row, 'eye': eye}
+        (self.place_rows if kind == 'place' else self.fav_rows).append(entry)
+        self.items.append((os.path.normpath(path), row))
         self.inner.append(row)
+        if self.picked == (kind, item_id):
+            row.add_css_class('sz-side-picked')
 
-    def _place_drag_begin(self, gesture, start_x, start_y, place_id):
-        self.place_drag_id = place_id
-        self.place_drop = None
-        for r in self.place_rows:
-            if r['id'] == place_id:
-                r['row'].add_css_class('sz-menu-dragging')
+    def _place_row(self, place_id, icon, label, path, group_id):
+        self._tile_row('place', place_id, icon, label, path, group_id,
+                       hidden=place_id in self.place_hidden)
 
-    def _place_drag_update(self, gesture, offset_x, offset_y, place_id):
-        for r in self.place_rows:
-            r['row'].remove_css_class('sz-menu-drop')
-        self.place_drop = None
+    def _fav_row(self, path, name, group_id):
+        self._tile_row('fav', path, 'folder-symbolic', name, path, group_id)
+
+    def _pick_tile(self, kind, item_id):
+        self.picked = None if self.picked == (kind, item_id) else (kind, item_id)
+        for entry in self.place_rows + self.fav_rows:
+            picked = self.picked == (entry['kind'], entry['id'])
+            (entry['row'].add_css_class if picked
+             else entry['row'].remove_css_class)('sz-side-picked')
+
+    def _tile_rows(self):
+        return self.place_rows + self.fav_rows
+
+    def _clear_drop(self):
+        for entry in self.group_rows + self._tile_rows():
+            entry['row'].remove_css_class('sz-side-drop')
+        self.add_group_btn.remove_css_class('sz-side-drop')
+
+    def _drop_target(self, gesture, offset_x, offset_y):
         if Graphene is None:
-            return
+            return None
         ok, sx, sy = gesture.get_start_point()
         if not ok:
-            return
-        ok, pt = gesture.get_widget().compute_point(
-            self.inner, Graphene.Point().init(sx + offset_x, sy + offset_y))
-        if not ok:
-            return
-        rows = self.place_rows
-        for index, r in enumerate(rows):
-            alloc = r['row'].get_allocation()
-            bottom = (rows[index + 1]['row'].get_allocation().y
-                      if index + 1 < len(rows) else self.inner.get_height())
-            if alloc.y <= pt.y < bottom and r['id'] != place_id:
-                r['row'].add_css_class('sz-menu-drop')
-                self.place_drop = (r['id'], pt.y > alloc.y + alloc.height / 2)
-                break
+            return None
+        widget = gesture.get_widget()
+        point = Graphene.Point().init(sx + offset_x, sy + offset_y)
+        ok, pt = widget.compute_point(self.inner, point)
+        if ok:
+            for entry in self.group_rows:
+                alloc = entry['row'].get_allocation()
+                if alloc.y <= pt.y < alloc.y + alloc.height:
+                    return ('group', entry, False)
+            for entry in self._tile_rows():
+                alloc = entry['row'].get_allocation()
+                if alloc.y <= pt.y < alloc.y + alloc.height:
+                    return ('tile', entry, pt.y > alloc.y + alloc.height / 2)
+        ok, pt = widget.compute_point(self.add_group_btn, point)
+        if ok and 0 <= pt.x <= self.add_group_btn.get_width() \
+                and 0 <= pt.y <= self.add_group_btn.get_height():
+            return ('new', None, False)
+        return None
 
-    def _place_drag_end(self, gesture, offset_x, offset_y, place_id):
-        for r in self.place_rows:
-            r['row'].remove_css_class('sz-menu-dragging')
-            r['row'].remove_css_class('sz-menu-drop')
-        drop, self.place_drop, self.place_drag_id = self.place_drop, None, None
-        if drop:
-            self._move_place(place_id, drop[0], drop[1])
+    def _tile_drag_begin(self, gesture, start_x, start_y, kind, item_id):
+        self._drag = (kind, item_id)
+        self._drop = None
+        for entry in self._tile_rows():
+            if entry['kind'] == kind and entry['id'] == item_id:
+                entry['row'].add_css_class('sz-menu-dragging')
 
-    def _move_place(self, src_id, dst_id, after):
-        if src_id == dst_id:
+    def _tile_drag_update(self, gesture, offset_x, offset_y, kind, item_id):
+        self._clear_drop()
+        self._drop = self._drop_target(gesture, offset_x, offset_y)
+        if self._drop is None:
             return
-        order = list(self.place_order)
-        if src_id not in order or dst_id not in order:
-            return
-        order.remove(src_id)
-        order.insert(order.index(dst_id) + (1 if after else 0), src_id)
-        self.place_order = order
-        self._save_places()
+        if self._drop[0] == 'new':
+            self.add_group_btn.add_css_class('sz-side-drop')
+        else:
+            self._drop[1]['row'].add_css_class('sz-side-drop')
+
+    def _tile_drag_end(self, gesture, offset_x, offset_y, kind, item_id):
+        for entry in self._tile_rows():
+            entry['row'].remove_css_class('sz-menu-dragging')
+        self._clear_drop()
+        drop, self._drop, self._drag = self._drop, None, None
+        if drop is not None:
+            self._apply_drop(kind, item_id, drop)
+
+    def _apply_drop(self, kind, item_id, drop):
+        where, entry, after = drop
+        created = where == 'new'
+        if created:
+            group_id = self._new_group()
+            dst = None
+        elif where == 'group':
+            group_id = entry['id']
+            dst = None
+        else:
+            group_id = entry['group']
+            dst = entry['id'] if entry['kind'] == kind else None
+        if kind == 'place':
+            order = list(self.place_order)
+            if item_id not in order:
+                order.append(item_id)
+            else:
+                order.remove(item_id)
+            if dst is not None and dst in order:
+                order.insert(order.index(dst) + (1 if after else 0), item_id)
+            else:
+                order.append(item_id)
+            self.place_order = order
+            default = self._default_group_id('places')
+            if group_id == default:
+                self.place_group.pop(item_id, None)
+            else:
+                self.place_group[item_id] = group_id
+        elif kind == 'fav':
+            order = [path for path, _name in self._favorite_entries()
+                     if path != item_id]
+            if dst is not None and dst in order:
+                order.insert(order.index(dst) + (1 if after else 0), item_id)
+            else:
+                order.append(item_id)
+            self.fav_order = order
+            default = self._default_group_id('favorites')
+            if group_id == default:
+                self.fav_group.pop(item_id, None)
+            else:
+                self.fav_group[item_id] = group_id
+        if created:
+            self._save_groups()
+        self._save_layout()
         self.rebuild()
 
     def _toggle_place(self, place_id):
@@ -708,25 +1065,35 @@ class Sidebar(Gtk.Box):
             self.place_hidden.discard(place_id)
         else:
             self.place_hidden.add(place_id)
-        self._save_places()
+        self._save_layout()
         self.rebuild()
 
-    def _save_places(self):
-        self.win.conf['sidebar_places'] = list(self.place_order)
-        self.win.conf['sidebar_hidden_places'] = [place_id for place_id in self.place_order
-                                                  if place_id in self.place_hidden]
-        self.win.conf.save()
+    def _save_layout(self):
+        conf = self.win.conf
+        conf['sidebar_places'] = list(self.place_order)
+        conf['sidebar_hidden_places'] = [place_id for place_id in self.place_order
+                                         if place_id in self.place_hidden]
+        conf['sidebar_place_groups'] = dict(self.place_group)
+        conf['sidebar_fav_groups'] = dict(self.fav_group)
+        conf['sidebar_fav_order'] = [path for path, _name in self._favorite_entries()]
+        conf.save()
         app = self.win.get_application()
         for w in (getattr(app, 'wins', None) or []):
             sb = getattr(w, 'sidebar', None)
             if sb is not None and sb is not self:
                 sb.sync_groups()
 
-    def sync_groups(self):
-        self.group_order = groups(self.win.conf)
-        self.hidden = hidden_groups(self.win.conf)
+    def _sync_model(self):
+        self.groups = sidebar_groups(self.win.conf)
+        self.group_order = [group['id'] for group in self.groups]
         self.place_order = place_order(self.win.conf)
         self.place_hidden = hidden_places(self.win.conf)
+        self.place_group = place_groups(self.win.conf)
+        self.fav_order = favorite_order(self.win.conf)
+        self.fav_group = favorite_groups(self.win.conf)
+
+    def sync_groups(self):
+        self._sync_model()
         self.rebuild()
 
     def _section(self, text):
@@ -754,31 +1121,56 @@ class Sidebar(Gtk.Box):
         p.navigate_text(path)
         p.focus_view()
 
-    def _build_places(self):
+    def _build_assigned(self, group_id):
+        """Плитки, закреплённые за этой группой (места и избранное)."""
         known = {place_id: (icon, label, path)
                  for place_id, icon, label, path in all_places()}
         for place_id in self.place_order:
             if place_id not in known:
                 continue
+            if self._place_group_id(place_id) != group_id:
+                continue
             icon, label, path = known[place_id]
             if self.editing:
-                self._place_row(place_id, icon, label, path)
+                self._place_row(place_id, icon, label, path, group_id)
             elif place_id not in self.place_hidden:
                 self._item(icon, label, path)
+        for path, name in self._favorite_entries():
+            if self._favorite_group_id(path) != group_id:
+                continue
+            if self.editing:
+                self._fav_row(path, name, group_id)
+            else:
+                self._item('folder-symbolic', name, path)
 
-    def _build_favorites(self):
-        favs = self.win.conf['favorites']
-        shown = False
-        for k in sorted(favs, key=lambda x: int(x) if str(x).isdigit() else 99):
-            p = fav_path(favs[k])
-            if p:
-                shown = True
-                self._item('folder-symbolic', fav_name(favs[k]), p)
-        if not shown:
-            l = lbl(_('No favorites yet'))
-            l.add_css_class('sz-muted')
-            l.set_margin_start(10)
-            self.inner.append(l)
+    def _placeholder(self, text):
+        l = lbl(text)
+        l.add_css_class('sz-muted')
+        l.set_margin_start(10)
+        l.set_ellipsize(Pango.EllipsizeMode.END)
+        self.inner.append(l)
+
+    def _group_has_content(self, group):
+        gtype = group_type(group)
+        if gtype in ('devices', 'network'):
+            return True
+        group_id = group['id']
+        known = {place_id for place_id, _icon, _label, _path in all_places()}
+        for place_id in self.place_order:
+            if place_id not in known:
+                continue
+            if self._place_group_id(place_id) != group_id:
+                continue
+            if self.editing or place_id not in self.place_hidden:
+                return True
+        for path, _name in self._favorite_entries():
+            if self._favorite_group_id(path) == group_id:
+                return True
+        return False
+
+    def _network_group_active(self):
+        return any(group_type(group) == 'network' and not group.get('hidden')
+                   for group in self.groups)
 
     def _on_devices_changed(self, *a):
         if not self._alive or self._devices_id:
@@ -854,6 +1246,9 @@ class Sidebar(Gtk.Box):
             GLib.source_remove(self._job_timer)
             self._job_timer = 0
         self._close_job_popup()
+        if self._group_popup is not None:
+            self._group_popup.popdown()
+            self._group_popup = None
         self.job_dialogs = []
         if self._devices_id:
             GLib.source_remove(self._devices_id)
@@ -1424,6 +1819,7 @@ class Sidebar(Gtk.Box):
     def _build_devices(self):
         self._item('drive-harddisk-symbolic', _('File system'), '/')
         monitor = self._monitor
+        net_separate = self._network_group_active()
         if monitor is not None:
             mounted_paths = set()
             try:
@@ -1437,6 +1833,8 @@ class Sidebar(Gtk.Box):
                     mounted_paths.add(path)
                     volume = self._volume_for_mount(mount)
                     if self._is_network_mount(mount):
+                        if net_separate:
+                            continue
                         name = self._network_label(mount, volume)
                     else:
                         name = (volume.get_name() if volume is not None
@@ -1449,9 +1847,51 @@ class Sidebar(Gtk.Box):
                 for volume in monitor.get_volumes():
                     if volume.get_mount() is not None:
                         continue
+                    if net_separate and self._is_network_volume(volume):
+                        continue
                     drive = volume.get_drive()
                     if (drive is not None and not drive.has_media()
                             and not self._is_phone_volume(volume)):
+                        continue
+                    if not volume.can_mount():
+                        continue
+                    name = volume.get_name()
+                    if not name:
+                        continue
+                    self._device_row(self._device_icon(volume=volume), name, None,
+                                     volume=volume)
+            except Exception:
+                pass
+        if not net_separate:
+            self._connect_row()
+
+    def _build_network(self):
+        """Сетевые диски: подключённые ресурсы и пункт подключения."""
+        monitor = self._monitor
+        if monitor is not None:
+            seen = set()
+            try:
+                for mount in monitor.get_mounts():
+                    if not self._is_network_mount(mount):
+                        continue
+                    path = self._mount_local_path(mount)
+                    if not path or not os.path.isdir(path):
+                        continue
+                    path = os.path.normpath(path)
+                    if path in seen:
+                        continue
+                    seen.add(path)
+                    volume = self._volume_for_mount(mount)
+                    self._device_row(self._device_icon(volume=volume, mount=mount),
+                                     self._network_label(mount, volume), path,
+                                     mount=mount, volume=volume)
+            except Exception:
+                pass
+            try:
+                for volume in monitor.get_volumes():
+                    if volume.get_mount() is not None:
+                        continue
+                    if not self._is_network_volume(volume):
                         continue
                     if not volume.can_mount():
                         continue
@@ -1707,23 +2147,28 @@ class Sidebar(Gtk.Box):
         self.items = []
         self.group_rows = []
         self.place_rows = []
-        builders = {'places': self._build_places,
-                    'favorites': self._build_favorites,
-                    'devices': self._build_devices}
-        for group_id in self.group_order:
-            hidden = group_id in self.hidden
-            show_section = not hidden
-            if show_section and not self.editing and group_id == 'places':
-                show_section = any(place_id not in self.place_hidden
-                                   for place_id, _icon, _label, _path in all_places())
+        self.fav_rows = []
+        favs_present = bool(self._favorite_entries())
+        for group in self.groups:
+            gtype = group_type(group)
+            hidden = bool(group.get('hidden'))
+            content = self._group_has_content(group)
             if self.editing:
-                self._group_header(group_id)
-            elif show_section:
-                self._section(_(SIDEBAR_LABELS[group_id]))
-            if not hidden:
-                build = builders.get(group_id)
-                if build is not None:
-                    build()
+                self._group_header(group)
+            elif not hidden and (content or (gtype == 'favorites' and not favs_present)):
+                self._section(group_title(group))
+            if hidden:
+                continue
+            if content:
+                self._build_assigned(group['id'])
+            if gtype == 'devices':
+                self._build_devices()
+            elif gtype == 'network':
+                self._build_network()
+            elif gtype == 'favorites' and not favs_present and not self.editing:
+                self._placeholder(_('No favorites yet'))
+            elif gtype == 'custom' and not content and self.editing:
+                self._placeholder(_('Drag items here'))
         self.set_active(self.win.active.current_dir() if self.win.active is not None
                         and self.win.active.mode == 'fs' else None)
         if adj is not None:
