@@ -950,6 +950,32 @@ class Panel(Gtk.Box):
             if row[C_NAME] in keep:
                 self._select_path(row.path)
 
+    def focus_item(self, name, scroll=True):
+        """Сделать элемент текущим для клавиатуры: Enter откроет именно его."""
+        if self.view_mode == 'tiles':
+            def go():
+                for i in range(self.tile_store.get_n_items()):
+                    if self.tile_store.get_item(i).name == name:
+                        try:
+                            # FOCUS и прокручивает, и ставит клавиатурный фокус.
+                            self.grid.scroll_to(i, Gtk.ListScrollFlags.FOCUS, None)
+                        except (AttributeError, TypeError):
+                            pass
+                        break
+                return False
+            # Раскладка GridView пересчитывается после изменения модели.
+            GLib.idle_add(go)
+            return
+        for row in self.sorted:
+            if row[C_NAME] == name:
+                try:
+                    self.tree.set_cursor(row.path, None, False)
+                    if scroll:
+                        self.tree.scroll_to_cell(row.path, None, False, 0.0, 0.0)
+                except Exception:
+                    pass
+                return
+
     def _on_mapped(self, w):
         """Панель показана: собрать плитки, отложенные в fill()."""
         if self._tiles_dirty and self.view_mode == 'tiles':
@@ -1284,12 +1310,20 @@ class Panel(Gtk.Box):
         adj = self._scroll_adj()
         scroll, up, pg = adj.get_value(), adj.get_upper(), adj.get_page_size()
         anchor = self._visible_anchor()
+        # keep передан явно — значит, элемент только что создан/переименован
+        # и его нужно показать и сделать текущим для клавиатуры.
+        explicit = keep is not None
         keep = keep if keep is not None else [i.name for i in self.selected()]
         if self.mode == 'fs':
             if vfs.is_dir(self.path):
                 self.fill(self._fs_rows(), keep)
                 self._restore_anchor(anchor)
                 self._restore_scroll(scroll, up, pg)
+                if explicit and keep and self.view_mode == 'tiles':
+                    # В плитках _restore_scroll отменяет отложенный показ, а
+                    # клавиатурный фокус остаётся на первой плите — Enter
+                    # открывал её вместо нового элемента.
+                    self.focus_item(keep[0])
             else:
                 self.navigate_fs(vfs.dirname(self.path) or '/')
             return
