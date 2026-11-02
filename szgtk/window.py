@@ -2017,17 +2017,38 @@ class MainWindow(Gtk.ApplicationWindow):
         for win in wins:
             win.close()
 
+    @staticmethod
+    def _unique_new_name(parent, name, folder):
+        """Свободное имя вида «Новая папка 2» для нового элемента."""
+        if not vfs.exists(vfs.join(parent, name)):
+            return name
+        root, ext = (name, '') if folder else os.path.splitext(name)
+        m = re.match(r'^(.*?) (\d+)$', root)
+        if m:
+            base, num = m.group(1), int(m.group(2)) + 1
+        else:
+            base, num = root, 2
+        while True:
+            cand = '%s %d%s' % (base, num, ext)
+            if not vfs.exists(vfs.join(parent, cand)):
+                return cand
+            num += 1
+
     def _new_item(self, folder):
         p = self.active
         title = _('Create folder') if folder else _('Create file')
         label = _('Folder name:') if folder else _('File name:')
         default = _('New folder') if folder else _('New file')
+        if p.mode == 'fs':
+            # Если «Новая папка» уже есть, предлагаем «Новая папка 2».
+            default = self._unique_new_name(p.path, default, folder)
 
         def make(name):
             if '/' in name:
                 alert(self, _('Invalid name'))
                 return
             if p.mode == 'fs':
+                name = self._unique_new_name(p.path, name, folder)
                 path = vfs.join(p.path, name)
                 try:
                     ok = vfs.mkdir(path) if folder else vfs.touch(path)
