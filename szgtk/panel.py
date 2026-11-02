@@ -318,7 +318,12 @@ class Panel(Gtk.Box):
         self.tile_store = Gio.ListStore.new(TileItem)
         self.tile_sel = Gtk.MultiSelection.new(self.tile_store)
         self.tile_sel.connect('selection-changed', lambda m, p, n: self.update_status())
+        self.tile_sel.connect('selection-changed', self._tile_anchor_changed)
         self._bound, self._tiles_dirty = {}, True
+        # Последний элемент, с которого начинается Shift-выделение. GridView
+        # после пересборки модели сбрасывает свой внутренний якорь на первую
+        # плитку, поэтому якорем управляем сами.
+        self._tile_anchor = None
         g = Gtk.GridView.new(self.tile_sel, self._make_factory())
         g.set_enable_rubberband(True)
         g.set_min_columns(1)
@@ -328,6 +333,11 @@ class Panel(Gtk.Box):
         bl.set_button(3)
         bl.connect('pressed', self._on_grid_blank_click)
         g.add_controller(bl)
+        shift = Gtk.GestureClick()
+        shift.set_button(1)
+        shift.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        shift.connect('pressed', self._tile_shift_pressed)
+        g.add_controller(shift)
         self.grid = g
         self.sorted.connect('sort-column-changed', lambda m: self._tiles_changed())
 
@@ -640,6 +650,8 @@ class Panel(Gtk.Box):
                 self.tile_sel.select_item(i, False)
                 if first is None:
                     first = i
+        if first is not None:
+            self._tile_anchor = first
         if first is not None and reveal:
             # GridView пересчитывает раскладку после splice, поэтому прокручиваем
             # к выделенной плите в следующей итерации главного цикла.
@@ -828,6 +840,50 @@ class Panel(Gtk.Box):
         self.entry.select_region(0, -1)
 
     # ---------- выделение / статус (общие для списка и плиток) ----------
+    def _tile_anchor_changed(self, model, position, n_items):
+        """Запомнить якорь Shift-выделения, когда выбрана одна плитка."""
+        sel = model.get_selection()
+        if sel.get_size() == 1:
+            self._tile_anchor = sel.get_nth(0)
+
+    def _tile_index_at(self, x, y):
+        """Индекс плитки под точкой (в координатах GridView)."""
+        try:
+            widget = self.grid.pick(x, y, 0)
+        except (AttributeError, TypeError):
+            widget = None
+        while widget is not None and widget is not self.grid:
+            parts = getattr(widget, '_parts', None)
+            if parts is None and isinstance(widget, Gtk.ListItem):
+                parts = getattr(widget.get_child(), '_parts', None)
+            if parts is not None and parts.item is not None:
+                full = parts.item.full
+                for i in range(self.tile_store.get_n_items()):
+                    if self.tile_store.get_item(i).full == full:
+                        return i
+                return None
+            widget = widget.get_parent()
+        return None
+
+    def _tile_shift_pressed(self, gesture, n_press, x, y):
+        """Своё Shift-выделение плиток: GridView сбрасывает якорь на первую."""
+        idx = self._tile_index_at(x, y)
+        if idx is None:
+            return
+        state = gesture.get_current_event_state()
+        if not (state & Gdk.ModifierType.SHIFT_MASK):
+            self._tile_anchor = idx
+            return
+        anchor = self._tile_anchor
+        if anchor is None or not 0 <= anchor < self.tile_store.get_n_items():
+            self._tile_anchor = idx
+            self.tile_sel.select_range(idx, 1, True)
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+            return
+        lo, hi = (anchor, idx) if anchor <= idx else (idx, anchor)
+        self.tile_sel.select_range(lo, hi - lo + 1, True)
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+
     def _sel_paths(self):
         if self.view_mode == 'tiles':
             bs = self.tile_sel.get_selection()
@@ -937,6 +993,7 @@ class Panel(Gtk.Box):
             # его (иначе после создания папки можно уйти в чужой каталог).
             if self.view_mode == 'tiles':
                 idx = first.get_indices()[0]
+                self._tile_anchor = idx
                 if scroll and 0 <= idx < self.tile_store.get_n_items():
                     self._scroll_tile_to(self.tile_store.get_item(idx).name)
             else:
@@ -956,6 +1013,7 @@ class Panel(Gtk.Box):
             def go():
                 for i in range(self.tile_store.get_n_items()):
                     if self.tile_store.get_item(i).name == name:
+                        self._tile_anchor = i
                         try:
                             # FOCUS и прокручивает, и ставит клавиатурный фокус.
                             self.grid.scroll_to(i, Gtk.ListScrollFlags.FOCUS, None)
