@@ -449,9 +449,10 @@ RU.update({
     'Add to .7z': 'Добавить в .7z', 'Add to .zip': 'Добавить в .zip',
     'Extract to folder': 'Извлечь в папку',
     'Display conditions': 'Условия отображения',
-    'If all are checked, there are no additional restrictions. If none are checked, the item is never shown.':
-        'Если отмечены все — дополнительных ограничений нет. '
-        'Если не отмечено ничего — пункт не показывается.',
+    'Checked situations are where the item appears. The default marks match where the item normally belongs — uncheck a situation to hide the item there.':
+        'Отмечены ситуации, в которых показывается пункт. По умолчанию отмечено '
+        'то, где он обычно уместен, — снимите отметку, чтобы скрыть пункт в этой '
+        'ситуации.',
     'Empty area': 'Пустое место', 'Folder': 'Папка', 'Audio file': 'Аудиофайл',
     'Video file': 'Видеофайл', 'Image': 'Изображение', 'Other file': 'Другой файл',
     'Multiple items': 'Несколько элементов', 'Inside an archive': 'Внутри архива',

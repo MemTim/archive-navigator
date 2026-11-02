@@ -48,9 +48,53 @@ CONTEXTS = [
 CONTEXT_LABELS = {context_id: label for context_id, label in CONTEXTS}
 ALL_CONTEXTS = tuple(context_id for context_id, _label in CONTEXTS)
 
+# Ситуации, в которых пункт появляется сам по себе — до того, как пользователь
+# что-то отметил в «Условиях отображения». Совпадают с условиями, по которым
+# пункт добавляется в контекстное меню.
+_SELECTION = frozenset({'folder', 'archive', 'audio', 'video', 'image', 'file',
+                        'multi'})
+_SELECTION_OR_INSIDE = _SELECTION | {'inside'}
+_FILE_LIKE = frozenset({'archive', 'audio', 'video', 'image', 'file', 'multi'})
+_ALL = frozenset(ALL_CONTEXTS)
+
+DEFAULT_CONTEXTS = {
+    'open': _SELECTION_OR_INSIDE,
+    'run': _FILE_LIKE,
+    'open-with': _FILE_LIKE,
+    'convert': _FILE_LIKE,
+    'convert-to': _FILE_LIKE,
+    'add': _SELECTION,
+    'add-7z': _SELECTION,
+    'add-zip': _SELECTION,
+    'extract': frozenset({'archive', 'multi', 'inside'}),
+    'extract-here': frozenset({'archive', 'multi'}),
+    'extract-dir': frozenset({'archive', 'multi'}),
+    'test': frozenset({'archive', 'multi', 'inside'}),
+    'open-inside': frozenset({'audio', 'video', 'image', 'file', 'multi'}),
+    'add-files': frozenset({'inside'}),
+    'rename': _SELECTION_OR_INSIDE,
+    'copy-selection': _SELECTION_OR_INSIDE,
+    'cut-selection': _SELECTION_OR_INSIDE,
+    'paste': _ALL,
+    'copy': _SELECTION_OR_INSIDE,
+    'move': _SELECTION_OR_INSIDE,
+    'delete': _SELECTION_OR_INSIDE,
+    'checksum': _SELECTION,
+    'properties': _SELECTION_OR_INSIDE,
+    'new-folder': _ALL,
+    'select-all': _ALL,
+    'refresh': _ALL,
+    'open-as-root': _SELECTION | {'empty'},
+}
+
 LABELS = {item_id: label for item_id, label, _section in MENU_ITEMS}
 SECTIONS = {item_id: section for item_id, _label, section in MENU_ITEMS}
 DEFAULT_LAYOUT = [(item_id, section) for item_id, _label, section in MENU_ITEMS]
+
+
+def default_contexts(item_id):
+    """Ситуации показа пункта по умолчанию (без пользовательских правок)."""
+    return set(DEFAULT_CONTEXTS.get(item_id, _ALL))
 
 
 def normalize(layout):

@@ -11,7 +11,8 @@ from .archive_dialogs import (EXTRACT_PATHMODES, FORMATS, LEVELS,
                               OVERWRITE_MODES)
 from .favorites import make as fav_make, name as fav_name, path as fav_path
 from .menu_layout import (ALL_CONTEXTS, CONTEXTS, LABELS as MENU_LABELS,
-                          contexts as load_menu_contexts, group_selected,
+                          contexts as load_menu_contexts, default_contexts,
+                          group_selected,
                           hidden as menu_hidden, load as load_menu_layout,
                           normalize as normalize_menu_layout)
 
@@ -1038,14 +1039,15 @@ class SettingsDialog(DlgBase):
         title = lbl(_('Display conditions'))
         title.add_css_class('sz-title')
         box.append(title)
-        hint = lbl(_('If all are checked, there are no additional restrictions. '
-                     'If none are checked, the item is never shown.'))
+        hint = lbl(_('Checked situations are where the item appears. The default '
+                     'marks match where the item normally belongs — uncheck a '
+                     'situation to hide the item there.'))
         hint.add_css_class('sz-muted')
         hint.set_wrap(True)
         hint.set_max_width_chars(32)
         box.append(hint)
         allowed = self.menu_contexts.get(item_id)
-        checked = set(ALL_CONTEXTS) if allowed is None else set(allowed)
+        checked = default_contexts(item_id) if allowed is None else set(allowed)
         for context_id, text in CONTEXTS:
             cb = Gtk.CheckButton(label=_(text))
             cb.set_active(context_id in checked)
@@ -1058,12 +1060,13 @@ class SettingsDialog(DlgBase):
         pop.popup()
 
     def _menu_context_toggle(self, item_id, context_id, active):
-        allowed = set(self.menu_contexts.get(item_id, ALL_CONTEXTS))
+        defaults = default_contexts(item_id)
+        allowed = set(self.menu_contexts.get(item_id, defaults))
         if active:
             allowed.add(context_id)
         else:
             allowed.discard(context_id)
-        if allowed == set(ALL_CONTEXTS):
+        if allowed == defaults:
             self.menu_contexts.pop(item_id, None)
         else:
             self.menu_contexts[item_id] = allowed
@@ -1254,7 +1257,7 @@ class SettingsDialog(DlgBase):
         c['menu_contexts'] = {
             item_id: [context_id for context_id in ALL_CONTEXTS if context_id in allowed]
             for item_id, allowed in self.menu_contexts.items()
-            if set(allowed) != set(ALL_CONTEXTS)}
+            if set(allowed) != default_contexts(item_id)}
         c['accels'] = {h[0]: self.accels[h[0]] for h in HOTKEYS if self.accels[h[0]] != h[3]}
         self._fav_collect()
         favs, n = {}, 0
