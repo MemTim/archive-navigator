@@ -1826,9 +1826,11 @@ class Sidebar(Gtk.Box):
             button.add_css_class('sz-side-unmounted')
             button.set_tooltip_text(_('Click to connect phone') if phone
                                     else _('Click to mount'))
-            button.connect('clicked', lambda x, v=volume: self._mount_volume(v))
+            button.connect('clicked', lambda x, v=volume:
+                           None if self.editing else self._mount_volume(v))
         else:
-            button.connect('clicked', lambda x, p=path: self._go(p))
+            button.connect('clicked', lambda x, p=path:
+                           None if self.editing else self._go(p))
         row.append(button)
         if mount is not None and self._mount_ejectable(mount):
             phone = self._is_phone_mount(mount)
@@ -1852,7 +1854,8 @@ class Sidebar(Gtk.Box):
             eject.set_focus_on_click(False)
             eject.set_tooltip_text(eject_text)
             eject.update_property([Gtk.AccessibleProperty.LABEL], [eject_text])
-            eject.connect('clicked', lambda x, m=mount: self._eject_mount(m))
+            eject.connect('clicked', lambda x, m=mount:
+                          None if self.editing else self._eject_mount(m))
             row.append(eject)
         if self.editing and key and kind:
             row.append(self._device_handle(kind, key))
@@ -2100,13 +2103,16 @@ class Sidebar(Gtk.Box):
                         'mount': None, 'volume': volume})
             except Exception:
                 pass
+        if not net_separate:
+            entries.append({'key': 'connect', 'connect': True})
         ordered = self._ordered_device_entries(entries, self.device_order)
         for entry in ordered:
-            self._device_row(entry['icon'], entry['text'], entry['path'],
-                             mount=entry['mount'], volume=entry['volume'],
-                             key=entry['key'], kind='device')
-        if not net_separate:
-            self._connect_row()
+            if entry.get('connect'):
+                self._connect_row(entry['key'], 'device')
+            else:
+                self._device_row(entry['icon'], entry['text'], entry['path'],
+                                 mount=entry['mount'], volume=entry['volume'],
+                                 key=entry['key'], kind='device')
 
     def _build_network(self):
         """Сетевые диски: подключённые ресурсы и пункт подключения."""
@@ -2156,20 +2162,28 @@ class Sidebar(Gtk.Box):
                         'mount': None, 'volume': volume})
             except Exception:
                 pass
+        entries.append({'key': 'connect', 'connect': True})
         ordered = self._ordered_device_entries(entries, self.network_order)
         for entry in ordered:
-            self._device_row(entry['icon'], entry['text'], entry['path'],
-                             mount=entry['mount'], volume=entry['volume'],
-                             key=entry['key'], kind='network')
-        self._connect_row()
+            if entry.get('connect'):
+                self._connect_row(entry['key'], 'network')
+            else:
+                self._device_row(entry['icon'], entry['text'], entry['path'],
+                                 mount=entry['mount'], volume=entry['volume'],
+                                 key=entry['key'], kind='network')
 
-    def _connect_row(self):
+    def _connect_row(self, key='connect', kind='network'):
         """Пункт «Подключиться к серверу…» в разделе устройств."""
+        outer = hbox(0)
+        outer.add_css_class('sz-side-connect-row')
+        if self.editing:
+            outer.add_css_class('sz-side-device-edit')
         button = Gtk.Button()
         button.add_css_class('flat')
         button.add_css_class('sz-side-item')
         button.add_css_class('sz-side-connect')
         button.set_focus_on_click(False)
+        button.set_hexpand(True)
         row = hbox(10)
         row.append(Gtk.Image.new_from_icon_name(
             pick_icon('network-server-symbolic', 'network-workgroup-symbolic',
@@ -2180,8 +2194,17 @@ class Sidebar(Gtk.Box):
         row.append(label)
         button.set_child(row)
         button.set_tooltip_text(_('Connect to server'))
-        button.connect('clicked', lambda x: self._network_dialog())
-        self.inner.append(button)
+
+        def activate(b):
+            if not self.editing:
+                self._network_dialog()
+        button.connect('clicked', activate)
+        outer.append(button)
+        if self.editing:
+            outer.append(self._device_handle(kind, key))
+            self._device_rows_for(kind).append(
+                {'key': key, 'row': outer, 'kind': kind})
+        self.inner.append(outer)
 
     @staticmethod
     def _network_uri(scheme, address):

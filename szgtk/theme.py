@@ -44,7 +44,9 @@ BASE_CSS = """
 .sz-section { font-size: 78%; font-weight: 700; opacity: 0.55; margin: 12px 8px 4px 8px; }
 .sz-side-item { padding: 7px 10px; border-radius: 6px; min-height: 0; }
 .sz-side-device-row { padding: 0; border-radius: 6px; }
-.sz-side-device-row.sz-menu-dragging { opacity: 0.55; }
+.sz-side-connect-row { padding: 0; border-radius: 6px; }
+.sz-side-device-row.sz-menu-dragging,
+.sz-side-connect-row.sz-menu-dragging { opacity: 0.55; }
 .sz-side-eject { padding: 4px; min-width: 26px; min-height: 26px; border-radius: 6px; }
 .sz-side-unmounted { opacity: 0.72; }
 .sz-side-paned > separator { background: transparent; min-width: 5px; min-height: 1px; }
@@ -163,14 +165,15 @@ BASE_CSS = """
 .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
 /* Линия вставки при перетаскивании: видно, между какими строками
    окажется элемент. */
-.sz-side-edit-row, .sz-side-group-row, .sz-side-device-row {
+.sz-side-edit-row, .sz-side-group-row, .sz-side-device-row,
+.sz-side-connect-row {
   transition: background-color 130ms ease, box-shadow 130ms ease, opacity 130ms ease;
 }
 .sz-side-edit-row.sz-drop-before, .sz-side-group-row.sz-drop-before,
-.sz-side-device-row.sz-drop-before {
+.sz-side-device-row.sz-drop-before, .sz-side-connect-row.sz-drop-before {
   box-shadow: inset 0 3px 0 0 @theme_selected_bg_color; }
 .sz-side-edit-row.sz-drop-after, .sz-side-group-row.sz-drop-after,
-.sz-side-device-row.sz-drop-after {
+.sz-side-device-row.sz-drop-after, .sz-side-connect-row.sz-drop-after {
   box-shadow: inset 0 -3px 0 0 @theme_selected_bg_color; }
 .sz-side-device-edit { padding-right: 2px; }
 .sz-menu-group { padding: 3px 10px; min-height: 0; border-radius: 8px;
@@ -407,11 +410,13 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px $focus; }
 .sz-midnight .sz-side-edit-row.sz-drop-before,
 .sz-midnight .sz-side-group-row.sz-drop-before,
-.sz-midnight .sz-side-device-row.sz-drop-before {
+.sz-midnight .sz-side-device-row.sz-drop-before,
+.sz-midnight .sz-side-connect-row.sz-drop-before {
   box-shadow: inset 0 3px 0 0 $focus; }
 .sz-midnight .sz-side-edit-row.sz-drop-after,
 .sz-midnight .sz-side-group-row.sz-drop-after,
-.sz-midnight .sz-side-device-row.sz-drop-after {
+.sz-midnight .sz-side-device-row.sz-drop-after,
+.sz-midnight .sz-side-connect-row.sz-drop-after {
   box-shadow: inset 0 -3px 0 0 $focus; }
 .sz-midnight .sz-menu-row.sz-menu-selected { background-color: alpha($focus, 0.16);
   box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
@@ -501,11 +506,13 @@ LIGHT_EXTRA_CSS = """
   { box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
 .sz-light .sz-side-edit-row.sz-drop-before, .sz-system .sz-side-edit-row.sz-drop-before,
 .sz-light .sz-side-group-row.sz-drop-before, .sz-system .sz-side-group-row.sz-drop-before,
-.sz-light .sz-side-device-row.sz-drop-before, .sz-system .sz-side-device-row.sz-drop-before
+.sz-light .sz-side-device-row.sz-drop-before, .sz-system .sz-side-device-row.sz-drop-before,
+.sz-light .sz-side-connect-row.sz-drop-before, .sz-system .sz-side-connect-row.sz-drop-before
   { box-shadow: inset 0 3px 0 0 @theme_selected_bg_color; }
 .sz-light .sz-side-edit-row.sz-drop-after, .sz-system .sz-side-edit-row.sz-drop-after,
 .sz-light .sz-side-group-row.sz-drop-after, .sz-system .sz-side-group-row.sz-drop-after,
-.sz-light .sz-side-device-row.sz-drop-after, .sz-system .sz-side-device-row.sz-drop-after
+.sz-light .sz-side-device-row.sz-drop-after, .sz-system .sz-side-device-row.sz-drop-after,
+.sz-light .sz-side-connect-row.sz-drop-after, .sz-system .sz-side-connect-row.sz-drop-after
   { box-shadow: inset 0 -3px 0 0 @theme_selected_bg_color; }
 .sz-light .sz-menu-row.sz-menu-selected, .sz-system .sz-menu-row.sz-menu-selected
   { background-color: alpha(@theme_selected_bg_color, 0.14);
@@ -543,10 +550,10 @@ LIGHT_EXTRA_CSS = """
 .sz-dark .sz-menu-row.sz-menu-dragging { background-color: #49475F; }
 .sz-dark .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px #FFF59B; }
 .sz-dark .sz-side-edit-row.sz-drop-before, .sz-dark .sz-side-group-row.sz-drop-before,
-.sz-dark .sz-side-device-row.sz-drop-before {
+.sz-dark .sz-side-device-row.sz-drop-before, .sz-dark .sz-side-connect-row.sz-drop-before {
   box-shadow: inset 0 3px 0 0 #FFF59B; }
 .sz-dark .sz-side-edit-row.sz-drop-after, .sz-dark .sz-side-group-row.sz-drop-after,
-.sz-dark .sz-side-device-row.sz-drop-after {
+.sz-dark .sz-side-device-row.sz-drop-after, .sz-dark .sz-side-connect-row.sz-drop-after {
   box-shadow: inset 0 -3px 0 0 #FFF59B; }
 .sz-dark .sz-menu-row.sz-menu-selected { background-color: alpha(#FFF59B, 0.14);
   box-shadow: inset 0 0 0 1px alpha(#FFF59B, 0.40); }
