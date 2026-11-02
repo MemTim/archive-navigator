@@ -193,6 +193,26 @@ def favorite_order(conf):
     return out
 
 
+def _saved_order(conf, key):
+    """Сохранённый порядок строк боковой панели (устройств или сети)."""
+    raw = conf.get(key) or []
+    out, seen = [], set()
+    for item in raw:
+        item = str(item)
+        if item and item not in seen:
+            out.append(item)
+            seen.add(item)
+    return out
+
+
+def device_order(conf):
+    return _saved_order(conf, 'sidebar_device_order')
+
+
+def network_order(conf):
+    return _saved_order(conf, 'sidebar_network_order')
+
+
 def _volume_monitor():
     return Gio.VolumeMonitor.get()
 
@@ -282,13 +302,19 @@ class Sidebar(Gtk.Box):
         self.place_group = place_groups(win.conf)
         self.fav_order = favorite_order(win.conf)
         self.fav_group = favorite_groups(win.conf)
+        self.device_order = device_order(win.conf)
+        self.network_order = network_order(win.conf)
         self.place_rows = []
         self.fav_rows = []
+        self.device_rows = []
+        self.network_rows = []
         self.picked = None
         self.editing = False
         self._group_popup = None
         self._drag = None
         self._drop = None
+        self._device_drag = None
+        self._device_drop = None
         self._alive = True
         self._devices_id = 0
         self._monitor = None
@@ -343,6 +369,8 @@ class Sidebar(Gtk.Box):
         self.reset_group_btn.connect('clicked', self._reset_groups_ask)
         self.reset_group_btn.set_visible(False)
         self.group_tools = hbox(6)
+        self.group_tools.set_margin_start(8)
+        self.group_tools.set_margin_end(8)
         self.group_tools.append(self.add_group_btn)
         self.group_tools.append(self.reset_group_btn)
         self.group_tools.set_visible(False)
@@ -840,8 +868,7 @@ class Sidebar(Gtk.Box):
                 r['row'].add_css_class('sz-menu-dragging')
 
     def _group_drag_update(self, gesture, offset_x, offset_y, group_id):
-        for r in self.group_rows:
-            r['row'].remove_css_class('sz-menu-drop')
+        self._clear_drop()
         self.group_drop = None
         if Graphene is None:
             return
@@ -853,19 +880,26 @@ class Sidebar(Gtk.Box):
         if not ok:
             return
         rows = self.group_rows
+        if rows and pt.y < rows[0]['row'].get_allocation().y:
+            first = rows[0]
+            if first['id'] != group_id:
+                self._mark_drop(first['row'], False)
+                self.group_drop = (first['id'], False)
+            return
         for index, r in enumerate(rows):
             alloc = r['row'].get_allocation()
             bottom = (rows[index + 1]['row'].get_allocation().y
                       if index + 1 < len(rows) else self.inner.get_height())
             if alloc.y <= pt.y < bottom and r['id'] != group_id:
-                r['row'].add_css_class('sz-menu-drop')
-                self.group_drop = (r['id'], pt.y > alloc.y + alloc.height / 2)
+                after = pt.y > alloc.y + alloc.height / 2
+                self._mark_drop(r['row'], after)
+                self.group_drop = (r['id'], after)
                 break
 
     def _group_drag_end(self, gesture, offset_x, offset_y, group_id):
         for r in self.group_rows:
             r['row'].remove_css_class('sz-menu-dragging')
-            r['row'].remove_css_class('sz-menu-drop')
+        self._clear_drop()
         drop, self.group_drop, self.group_drag_id = self.group_drop, None, None
         if drop:
             self._move_group(group_id, drop[0], drop[1])
@@ -936,12 +970,18 @@ class Sidebar(Gtk.Box):
         row.add_css_class('sz-side-place-row')
         img = Gtk.Image.new_from_icon_name(icon)
         img.set_pixel_size(16)
-        row.append(img)
+        # Значок и текст отстоят друг от друга так же, как в обычной плитке;
+        # справа ручка и глаз идут плотнее.
+        body = hbox(10)
+        body.set_hexpand(True)
+        body.append(img)
         text = lbl(label)
         # Обычный размер и цвет, как у плитки вне режима правки.
         text.add_css_class('sz-side-name')
         text.set_hexpand(True)
         text.set_ellipsize(Pango.EllipsizeMode.END)
+        body.append(text)
+        row.append(body)
         handle = Gtk.DrawingArea()
         handle.set_content_width(16)
         handle.set_content_height(16)
@@ -956,7 +996,6 @@ class Sidebar(Gtk.Box):
         drag.connect('drag-update', self._tile_drag_update, kind, item_id)
         drag.connect('drag-end', self._tile_drag_end, kind, item_id)
         handle.add_controller(drag)
-        row.append(text)
         row.append(handle)
         eye = None
         if kind == 'place':
@@ -998,9 +1037,17 @@ class Sidebar(Gtk.Box):
         return self.place_rows + self.fav_rows
 
     def _clear_drop(self):
-        for entry in self.group_rows + self._tile_rows():
-            entry['row'].remove_css_class('sz-side-drop')
+        rows = self.group_rows + self._tile_rows() + self.device_rows + self.network_rows
+        for entry in rows:
+            for cls in ('sz-side-drop', 'sz-drop-before', 'sz-drop-after'):
+                entry['row'].remove_css_class(cls)
         self.add_group_btn.remove_css_class('sz-side-drop')
+
+    @staticmethod
+    def _mark_drop(row, after):
+        """Подсветить строку и линию вставки: сверху или снизу."""
+        row.add_css_class('sz-side-drop')
+        row.add_css_class('sz-drop-after' if after else 'sz-drop-before')
 
     def _drop_target(self, gesture, offset_x, offset_y):
         if Graphene is None:
@@ -1041,7 +1088,7 @@ class Sidebar(Gtk.Box):
         if self._drop[0] == 'new':
             self.add_group_btn.add_css_class('sz-side-drop')
         else:
-            self._drop[1]['row'].add_css_class('sz-side-drop')
+            self._mark_drop(self._drop[1]['row'], self._drop[2])
 
     def _tile_drag_end(self, gesture, offset_x, offset_y, kind, item_id):
         for entry in self._tile_rows():
@@ -1097,6 +1144,90 @@ class Sidebar(Gtk.Box):
         self._save_layout()
         self.rebuild()
 
+    # ───────────── порядок устройств и сетевых дисков ─────────────
+    def _device_rows_for(self, kind):
+        return self.device_rows if kind == 'device' else self.network_rows
+
+    def _device_order_for(self, kind):
+        if kind == 'device':
+            return self.device_order
+        return self.network_order
+
+    def _set_device_order(self, kind, order):
+        if kind == 'device':
+            self.device_order = order
+        else:
+            self.network_order = order
+
+    def _ordered_device_entries(self, entries, order):
+        """Расставить строки по сохранённому порядку, новые — в конце."""
+        by_key, seen = {}, set()
+        for entry in entries:
+            key = entry.get('key')
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            by_key[key] = entry
+        saved = [key for key in order if key in by_key]
+        saved_set = set(saved)
+        rest = [key for key in by_key if key not in saved_set]
+        return [by_key[key] for key in saved + rest]
+
+    def _device_drag_begin(self, gesture, start_x, start_y, kind, key):
+        self._device_drag = (kind, key)
+        self._device_drop = None
+        for entry in self._device_rows_for(kind):
+            if entry['key'] == key:
+                entry['row'].add_css_class('sz-menu-dragging')
+
+    def _device_drag_update(self, gesture, offset_x, offset_y, kind, key):
+        self._clear_drop()
+        self._device_drop = None
+        if Graphene is None:
+            return
+        ok, sx, sy = gesture.get_start_point()
+        if not ok:
+            return
+        ok, pt = gesture.get_widget().compute_point(
+            self.inner, Graphene.Point().init(sx + offset_x, sy + offset_y))
+        if not ok:
+            return
+        rows = [entry for entry in self._device_rows_for(kind)
+                if entry['key'] != key]
+        for index, entry in enumerate(rows):
+            alloc = entry['row'].get_allocation()
+            bottom = (rows[index + 1]['row'].get_allocation().y
+                      if index + 1 < len(rows) else self.inner.get_height())
+            if alloc.y <= pt.y < bottom:
+                after = pt.y > alloc.y + alloc.height / 2
+                self._mark_drop(entry['row'], after)
+                self._device_drop = (entry['key'], after)
+                break
+
+    def _device_drag_end(self, gesture, offset_x, offset_y, kind, key):
+        for entry in self._device_rows_for(kind):
+            entry['row'].remove_css_class('sz-menu-dragging')
+        self._clear_drop()
+        drop, self._device_drop, self._device_drag = self._device_drop, None, None
+        if drop is not None:
+            self._move_device(kind, key, drop[0], drop[1])
+
+    def _move_device(self, kind, src_key, dst_key, after):
+        if src_key == dst_key:
+            return
+        order = list(self._device_order_for(kind))
+        current = [entry['key'] for entry in self._device_rows_for(kind)]
+        for key in current:
+            if key not in order:
+                order.append(key)
+        if src_key not in order or dst_key not in order:
+            return
+        order.remove(src_key)
+        order.insert(order.index(dst_key) + (1 if after else 0), src_key)
+        self._set_device_order(kind, order)
+        self._save_layout()
+        self.rebuild()
+
     def _toggle_place(self, place_id):
         if place_id in self.place_hidden:
             self.place_hidden.discard(place_id)
@@ -1113,6 +1244,8 @@ class Sidebar(Gtk.Box):
         conf['sidebar_place_groups'] = dict(self.place_group)
         conf['sidebar_fav_groups'] = dict(self.fav_group)
         conf['sidebar_fav_order'] = [path for path, _name in self._favorite_entries()]
+        conf['sidebar_device_order'] = list(self.device_order)
+        conf['sidebar_network_order'] = list(self.network_order)
         conf.save()
         app = self.win.get_application()
         for w in (getattr(app, 'wins', None) or []):
@@ -1128,6 +1261,8 @@ class Sidebar(Gtk.Box):
         self.place_group = place_groups(self.win.conf)
         self.fav_order = favorite_order(self.win.conf)
         self.fav_group = favorite_groups(self.win.conf)
+        self.device_order = device_order(self.win.conf)
+        self.network_order = network_order(self.win.conf)
 
     def sync_groups(self):
         self._sync_model()
@@ -1651,9 +1786,29 @@ class Sidebar(Gtk.Box):
             pass
         return False
 
-    def _device_row(self, icon, text, path, mount=None, volume=None):
+    def _device_handle(self, kind, key):
+        handle = Gtk.DrawingArea()
+        handle.set_content_width(16)
+        handle.set_content_height(16)
+        handle.add_css_class('sz-menu-handle')
+        handle.add_css_class('sz-side-handle')
+        handle.set_draw_func(_fav_sort_icon)
+        handle.set_tooltip_text(_('Drag to reorder'))
+        handle.update_property([Gtk.AccessibleProperty.LABEL], [_('Drag to reorder')])
+        handle.set_cursor(Gdk.Cursor.new_from_name('grab'))
+        drag = Gtk.GestureDrag()
+        drag.connect('drag-begin', self._device_drag_begin, kind, key)
+        drag.connect('drag-update', self._device_drag_update, kind, key)
+        drag.connect('drag-end', self._device_drag_end, kind, key)
+        handle.add_controller(drag)
+        return handle
+
+    def _device_row(self, icon, text, path, mount=None, volume=None,
+                    key=None, kind=None):
         row = hbox(0)
         row.add_css_class('sz-side-device-row')
+        if self.editing:
+            row.add_css_class('sz-side-device-edit')
         button = Gtk.Button()
         button.add_css_class('flat')
         button.add_css_class('sz-side-item')
@@ -1699,6 +1854,10 @@ class Sidebar(Gtk.Box):
             eject.update_property([Gtk.AccessibleProperty.LABEL], [eject_text])
             eject.connect('clicked', lambda x, m=mount: self._eject_mount(m))
             row.append(eject)
+        if self.editing and key and kind:
+            row.append(self._device_handle(kind, key))
+            self._device_rows_for(kind).append(
+                {'key': key, 'row': row, 'kind': kind})
         if path:
             self.items.append((os.path.normpath(path), row))
         self.inner.append(row)
@@ -1853,21 +2012,54 @@ class Sidebar(Gtk.Box):
             self.win.end_status_progress()
             alert(self.win, error_text, str(e))
 
+    def _device_key(self, path, mount=None, volume=None):
+        """Стабильный ключ строки для сохранения пользовательского порядка."""
+        if mount is not None:
+            uri = self._mount_root_uri(mount)
+            if uri:
+                return 'uri:' + uri.rstrip('/')
+        if volume is not None:
+            uri = self._volume_uri(volume)
+            if uri:
+                return 'uri:' + uri.rstrip('/')
+            for name in ('UNIX_DEVICE', 'UUID'):
+                ident = getattr(Gio.VolumeIdentifier, name, None)
+                if ident is None:
+                    continue
+                try:
+                    value = volume.get_identifier(ident)
+                except Exception:
+                    value = None
+                if value:
+                    return 'volume:' + str(value)
+            try:
+                vname = volume.get_name()
+            except Exception:
+                vname = None
+            if vname:
+                return 'volume:' + vname
+        if path:
+            return 'path:' + os.path.normpath(path)
+        return None
+
     def _build_devices(self):
-        self._item('drive-harddisk-symbolic', _('File system'), '/')
+        entries = [{'key': 'path:/', 'icon': 'drive-harddisk-symbolic',
+                    'text': _('File system'), 'path': '/',
+                    'mount': None, 'volume': None}]
         monitor = self._monitor
         net_separate = self._network_group_active()
         if monitor is not None:
-            mounted_paths = set()
+            mounted_keys = set()
             try:
                 for mount in monitor.get_mounts():
                     path = self._mount_local_path(mount)
                     if not path or path == '/' or not os.path.isdir(path):
                         continue
                     path = os.path.normpath(path)
-                    if path in mounted_paths:
+                    key = self._device_key(path, mount, None)
+                    if not key or key in mounted_keys:
                         continue
-                    mounted_paths.add(path)
+                    mounted_keys.add(key)
                     volume = self._volume_for_mount(mount)
                     if self._is_network_mount(mount):
                         if net_separate:
@@ -1876,8 +2068,11 @@ class Sidebar(Gtk.Box):
                     else:
                         name = (volume.get_name() if volume is not None
                                 and volume.get_name() else mount.get_name())
-                    self._device_row(self._device_icon(volume=volume, mount=mount), name,
-                                     path, mount=mount, volume=volume)
+                    entries.append({
+                        'key': key,
+                        'icon': self._device_icon(volume=volume, mount=mount),
+                        'text': name, 'path': path,
+                        'mount': mount, 'volume': volume})
             except Exception:
                 pass
             try:
@@ -1895,15 +2090,27 @@ class Sidebar(Gtk.Box):
                     name = volume.get_name()
                     if not name:
                         continue
-                    self._device_row(self._device_icon(volume=volume), name, None,
-                                     volume=volume)
+                    key = self._device_key(None, None, volume)
+                    if not key:
+                        continue
+                    entries.append({
+                        'key': key,
+                        'icon': self._device_icon(volume=volume),
+                        'text': name, 'path': None,
+                        'mount': None, 'volume': volume})
             except Exception:
                 pass
+        ordered = self._ordered_device_entries(entries, self.device_order)
+        for entry in ordered:
+            self._device_row(entry['icon'], entry['text'], entry['path'],
+                             mount=entry['mount'], volume=entry['volume'],
+                             key=entry['key'], kind='device')
         if not net_separate:
             self._connect_row()
 
     def _build_network(self):
         """Сетевые диски: подключённые ресурсы и пункт подключения."""
+        entries = []
         monitor = self._monitor
         if monitor is not None:
             seen = set()
@@ -1915,13 +2122,16 @@ class Sidebar(Gtk.Box):
                     if not path or not os.path.isdir(path):
                         continue
                     path = os.path.normpath(path)
-                    if path in seen:
+                    key = self._device_key(path, mount, None)
+                    if not key or key in seen:
                         continue
-                    seen.add(path)
+                    seen.add(key)
                     volume = self._volume_for_mount(mount)
-                    self._device_row(self._device_icon(volume=volume, mount=mount),
-                                     self._network_label(mount, volume), path,
-                                     mount=mount, volume=volume)
+                    entries.append({
+                        'key': key,
+                        'icon': self._device_icon(volume=volume, mount=mount),
+                        'text': self._network_label(mount, volume),
+                        'path': path, 'mount': mount, 'volume': volume})
             except Exception:
                 pass
             try:
@@ -1935,10 +2145,22 @@ class Sidebar(Gtk.Box):
                     name = volume.get_name()
                     if not name:
                         continue
-                    self._device_row(self._device_icon(volume=volume), name, None,
-                                     volume=volume)
+                    key = self._device_key(None, None, volume)
+                    if not key or key in seen:
+                        continue
+                    seen.add(key)
+                    entries.append({
+                        'key': key,
+                        'icon': self._device_icon(volume=volume),
+                        'text': name, 'path': None,
+                        'mount': None, 'volume': volume})
             except Exception:
                 pass
+        ordered = self._ordered_device_entries(entries, self.network_order)
+        for entry in ordered:
+            self._device_row(entry['icon'], entry['text'], entry['path'],
+                             mount=entry['mount'], volume=entry['volume'],
+                             key=entry['key'], kind='network')
         self._connect_row()
 
     def _connect_row(self):
@@ -2188,6 +2410,8 @@ class Sidebar(Gtk.Box):
         self.group_rows = []
         self.place_rows = []
         self.fav_rows = []
+        self.device_rows = []
+        self.network_rows = []
         favs_present = bool(self._favorite_entries())
         for group in self.groups:
             gtype = group_type(group)

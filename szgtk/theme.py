@@ -44,6 +44,7 @@ BASE_CSS = """
 .sz-section { font-size: 78%; font-weight: 700; opacity: 0.55; margin: 12px 8px 4px 8px; }
 .sz-side-item { padding: 7px 10px; border-radius: 6px; min-height: 0; }
 .sz-side-device-row { padding: 0; border-radius: 6px; }
+.sz-side-device-row.sz-menu-dragging { opacity: 0.55; }
 .sz-side-eject { padding: 4px; min-width: 26px; min-height: 26px; border-radius: 6px; }
 .sz-side-unmounted { opacity: 0.72; }
 .sz-side-paned > separator { background: transparent; min-width: 5px; min-height: 1px; }
@@ -129,7 +130,7 @@ BASE_CSS = """
 /* Компактные строки боковой панели в режиме редактирования: ручка и «глаз»
    не должны делать плитку выше обычного пункта. */
 .sz-side-edit-row { padding: 5px 10px; margin: 0; min-height: 0; }
-.sz-side-name { font-size: 100%; font-weight: 400; opacity: 1; }
+.sz-side-name { font-size: 100%; font-weight: 700; opacity: 1; }
 .sz-side-edit-row:hover { background: alpha(currentColor, 0.08); }
 .sz-side-edit-row.sz-side-picked { background: alpha(currentColor, 0.14);
   box-shadow: inset 0 0 0 1px alpha(currentColor, 0.45); }
@@ -139,15 +140,16 @@ BASE_CSS = """
 .sz-side-group-row:hover { background: alpha(currentColor, 0.06); }
 .sz-side-group-row.sz-side-drop { background: alpha(currentColor, 0.16);
   box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
-.sz-side-add-group { padding: 6px 10px; margin: 6px 0 2px 0; border-radius: 6px;
-  background: transparent; border: 1px dashed alpha(currentColor, 0.35); box-shadow: none; }
-.sz-side-add-group:hover { background: alpha(currentColor, 0.08); }
+.sz-side-add-group { padding: 8px 12px; margin: 8px 0 2px 0; border-radius: 8px;
+  background: alpha(currentColor, 0.06); border: 1px solid alpha(currentColor, 0.22);
+  box-shadow: none; }
+.sz-side-add-group:hover { background: alpha(currentColor, 0.10); }
 .sz-side-add-group.sz-side-drop { background: alpha(currentColor, 0.16);
   box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
-.sz-side-reset { padding: 6px; min-width: 30px; min-height: 30px; margin: 6px 0 2px 0;
-  border-radius: 6px; background: transparent;
-  border: 1px dashed alpha(currentColor, 0.35); box-shadow: none; }
-.sz-side-reset:hover { background: alpha(currentColor, 0.08); }
+.sz-side-reset { padding: 8px; min-width: 38px; min-height: 38px; margin: 8px 0 2px 0;
+  border-radius: 8px; background: alpha(currentColor, 0.06);
+  border: 1px solid alpha(currentColor, 0.22); box-shadow: none; }
+.sz-side-reset:hover { background: alpha(currentColor, 0.10); }
 .sz-danger { color: #E01B24; }
 .sz-danger:hover { background: alpha(#E01B24, 0.14); }
 .sz-danger:disabled { color: alpha(#E01B24, 0.5); }
@@ -159,6 +161,18 @@ BASE_CSS = """
 .sz-menu-row.sz-menu-selected { background-color: alpha(currentColor, 0.10); }
 .sz-menu-row.sz-menu-dragging { opacity: 0.55; }
 .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
+/* Линия вставки при перетаскивании: видно, между какими строками
+   окажется элемент. */
+.sz-side-edit-row, .sz-side-group-row, .sz-side-device-row {
+  transition: background-color 130ms ease, box-shadow 130ms ease, opacity 130ms ease;
+}
+.sz-side-edit-row.sz-drop-before, .sz-side-group-row.sz-drop-before,
+.sz-side-device-row.sz-drop-before {
+  box-shadow: inset 0 3px 0 0 @theme_selected_bg_color; }
+.sz-side-edit-row.sz-drop-after, .sz-side-group-row.sz-drop-after,
+.sz-side-device-row.sz-drop-after {
+  box-shadow: inset 0 -3px 0 0 @theme_selected_bg_color; }
+.sz-side-device-edit { padding-right: 2px; }
 .sz-menu-group { padding: 3px 10px; min-height: 0; border-radius: 8px;
   background: alpha(currentColor, 0.08); border: none; box-shadow: none; }
 .sz-menu-group:hover { background: alpha(currentColor, 0.14); }
@@ -380,16 +394,25 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-side-edit-row.sz-side-drop,
 .sz-midnight .sz-side-group-row.sz-side-drop { background: alpha($focus, 0.18);
   box-shadow: inset 0 0 0 2px $focus; }
-.sz-midnight .sz-side-add-group { color: $muted; border-color: alpha($muted, 0.6); }
-.sz-midnight .sz-side-add-group:hover { background: alpha($text, 0.06); }
+.sz-midnight .sz-side-add-group,
+.sz-midnight .sz-side-reset { color: $text; background: $surface;
+  border-color: $border; }
+.sz-midnight .sz-side-add-group:hover,
+.sz-midnight .sz-side-reset:hover { background: $border; }
 .sz-midnight .sz-side-add-group.sz-side-drop { background: alpha($focus, 0.18);
   box-shadow: inset 0 0 0 2px $focus; }
-.sz-midnight .sz-side-reset { color: $muted; border-color: alpha($muted, 0.6); }
-.sz-midnight .sz-side-reset:hover { background: alpha($text, 0.06); }
 .sz-midnight .sz-danger { color: #F20D14; }
 .sz-midnight .sz-danger:hover { background: alpha(#F20D14, 0.16); }
 .sz-midnight .sz-danger:disabled { color: alpha(#F20D14, 0.5); }
 .sz-midnight .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px $focus; }
+.sz-midnight .sz-side-edit-row.sz-drop-before,
+.sz-midnight .sz-side-group-row.sz-drop-before,
+.sz-midnight .sz-side-device-row.sz-drop-before {
+  box-shadow: inset 0 3px 0 0 $focus; }
+.sz-midnight .sz-side-edit-row.sz-drop-after,
+.sz-midnight .sz-side-group-row.sz-drop-after,
+.sz-midnight .sz-side-device-row.sz-drop-after {
+  box-shadow: inset 0 -3px 0 0 $focus; }
 .sz-midnight .sz-menu-row.sz-menu-selected { background-color: alpha($focus, 0.16);
   box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
 .sz-midnight .sz-menu-group { color: $focus; background: alpha($focus, 0.12); }
@@ -476,6 +499,14 @@ LIGHT_EXTRA_CSS = """
   { background-color: alpha(currentColor, 0.12); }
 .sz-light .sz-menu-row.sz-menu-drop, .sz-system .sz-menu-row.sz-menu-drop
   { box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
+.sz-light .sz-side-edit-row.sz-drop-before, .sz-system .sz-side-edit-row.sz-drop-before,
+.sz-light .sz-side-group-row.sz-drop-before, .sz-system .sz-side-group-row.sz-drop-before,
+.sz-light .sz-side-device-row.sz-drop-before, .sz-system .sz-side-device-row.sz-drop-before
+  { box-shadow: inset 0 3px 0 0 @theme_selected_bg_color; }
+.sz-light .sz-side-edit-row.sz-drop-after, .sz-system .sz-side-edit-row.sz-drop-after,
+.sz-light .sz-side-group-row.sz-drop-after, .sz-system .sz-side-group-row.sz-drop-after,
+.sz-light .sz-side-device-row.sz-drop-after, .sz-system .sz-side-device-row.sz-drop-after
+  { box-shadow: inset 0 -3px 0 0 @theme_selected_bg_color; }
 .sz-light .sz-menu-row.sz-menu-selected, .sz-system .sz-menu-row.sz-menu-selected
   { background-color: alpha(@theme_selected_bg_color, 0.14);
     box-shadow: inset 0 0 0 1px alpha(@theme_selected_bg_color, 0.45); }
@@ -511,6 +542,12 @@ LIGHT_EXTRA_CSS = """
 .sz-dark .sz-menu-sep { background-color: alpha(#EEEBFA, 0.22); }
 .sz-dark .sz-menu-row.sz-menu-dragging { background-color: #49475F; }
 .sz-dark .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px #FFF59B; }
+.sz-dark .sz-side-edit-row.sz-drop-before, .sz-dark .sz-side-group-row.sz-drop-before,
+.sz-dark .sz-side-device-row.sz-drop-before {
+  box-shadow: inset 0 3px 0 0 #FFF59B; }
+.sz-dark .sz-side-edit-row.sz-drop-after, .sz-dark .sz-side-group-row.sz-drop-after,
+.sz-dark .sz-side-device-row.sz-drop-after {
+  box-shadow: inset 0 -3px 0 0 #FFF59B; }
 .sz-dark .sz-menu-row.sz-menu-selected { background-color: alpha(#FFF59B, 0.14);
   box-shadow: inset 0 0 0 1px alpha(#FFF59B, 0.40); }
 .sz-dark .sz-menu-group { color: #FFF59B; background: alpha(#FFF59B, 0.10); }
