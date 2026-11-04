@@ -545,8 +545,10 @@ class SettingsDialog(DlgBase):
         box = vbox(2, 6)
         up = Gtk.Button(label=_('Move up'))
         up.set_sensitive(idx > 0)
+        up.add_css_class('flat')
         down = Gtk.Button(label=_('Move down'))
         down.set_sensitive(idx < len(self.fav_model) - 1)
+        down.add_css_class('flat')
 
         def move(delta):
             pop.popdown()
@@ -1171,6 +1173,7 @@ class SettingsDialog(DlgBase):
             b.connect('clicked', lambda x, h=hid: self._capture(h))
             rst = Gtk.Button(label='↺')
             rst.set_tooltip_text(_('Reset'))
+            rst.add_css_class('flat')
             rst.connect('clicked', lambda x, h=hid: self._set_accel(h, self._default(h)))
             r.append(b)
             r.append(rst)
@@ -1182,6 +1185,7 @@ class SettingsDialog(DlgBase):
         pg.append(sw)
         reset = Gtk.Button(label=_('Reset all shortcuts'))
         reset.set_halign(Gtk.Align.START)
+        reset.add_css_class('flat')
         reset.connect('clicked', self._reset_all)
         pg.append(reset)
         return pg

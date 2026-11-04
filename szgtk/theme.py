@@ -8,6 +8,12 @@ PAL = dict(bg='#08071F', surface='#211F35', border='#302D45', text='#EEEBFA',
            muted='#8B879C', accent='#458BDF', focus='#FFF59B', soft='#D0CED1')
 
 BASE_CSS = """
+/* ── поля ввода и выпадающие списки: одна обводка и один радиус ── */
+entry, spinbutton, dropdown > button, .sz-fav-field, .sz-conv-dd > button
+  { border-radius: 8px; min-height: 34px; }
+/* ── кнопки: у обычных (ghost) прозрачная обводка во всех схемах ── */
+button { box-shadow: none; }
+button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
 .sz-toolbar { padding: 3px 6px; }
 .sz-toolbar button { padding: 3px 10px; border-radius: 6px; min-height: 0; min-width: 0; }
 .sz-toolbar-h button { padding: 6px 12px; }
@@ -64,17 +70,19 @@ BASE_CSS = """
 .sz-job-info { font-size: 90%; opacity: 0.8; }
 .sz-job-bar { min-height: 6px; }
 .sz-job-sep { margin: 6px 0; }
-.sz-job-stop { padding: 4px 12px; min-height: 0; }
-.sz-job-show { padding: 4px 12px; min-height: 0; }
-.sz-prog-hide { padding: 4px 12px; min-height: 0; }
+.sz-job-stop, .sz-job-show, .sz-prog-hide,
+.sz-prog-cancel, .sz-prog-pause
+  { padding: 5px 14px; min-height: 0; border-radius: 8px;
+    background: transparent; background-image: none; box-shadow: none; }
 .sz-menu-hidden .sz-side-group-label { opacity: 0.35; }
-.sz-usercard { padding: 10px 12px; border-radius: 8px; margin: 8px; }
+.sz-usercard { padding: 10px 12px; border-radius: 12px; margin: 8px;
+  border: 1px solid alpha(currentColor, 0.14); }
 .sz-hdr { padding: 6px 10px; }
 .sz-hdr-role { font-weight: 700; }
 .sz-badge { font-size: 78%; opacity: 0.6; letter-spacing: 0.5px; }
 .sz-title { font-weight: 700; font-size: 115%; }
 .sz-prop-icon { background: alpha(currentColor, 0.07); border: 1px solid alpha(currentColor, 0.14);
-  border-radius: 10px; padding: 8px; }
+  border-radius: 12px; padding: 8px; }
 .sz-prop-name { font-weight: 500; }
 .sz-prop-key { opacity: 0.58; }
 .sz-prop-col { opacity: 0.58; font-weight: 600; }
@@ -104,11 +112,11 @@ BASE_CSS = """
 .sz-pv-side { background: #211F35; border-radius: 3px; }
 .sz-pv-stat { background: #302D45; min-height: 4px; border-radius: 2px; }
 .sz-pv-hdr { background: #211F35; min-height: 7px; border-radius: 2px; }
-.sz-card { padding: 8px; border-radius: 10px; border: 2px solid transparent; }
+.sz-card { padding: 8px; border-radius: 12px; border: 1px solid transparent; }
 .sz-card-sel { border-color: #458BDF; }
 .sz-menubar { padding: 2px 6px; }
 .sz-menubar-item { padding: 3px 10px; min-height: 0; min-width: 0; border-radius: 6px; }
-.sz-menu { padding: 4px; border-radius: 10px; }
+.sz-menu { padding: 4px; border-radius: 12px; }
 .sz-menu-item { padding: 6px 10px; min-height: 0; min-width: 0; border-radius: 6px; }
 .sz-menu-sep { margin: 4px 6px; min-height: 1px; }
 .sz-root-banner { background-color: #8B1D1D; color: #FFFFFF; padding: 3px 12px; font-weight: 600; }
@@ -118,7 +126,7 @@ BASE_CSS = """
 .sz-inline-text text { background: none; }
 .sz-fav-row { border-radius: 12px; padding: 6px 10px; }
 .sz-fav-num { font-size: 105%; min-width: 30px; }
-.sz-fav-field { border-radius: 10px; padding: 0 10px; min-height: 34px; }
+.sz-fav-field { border-radius: 8px; padding: 0 10px; min-height: 34px; }
 .sz-fav-sort { padding: 3px; min-width: 28px; min-height: 28px; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
 .sz-fav-del { padding: 4px; min-width: 26px; min-height: 26px; border-radius: 6px;
@@ -152,7 +160,10 @@ BASE_CSS = """
   border-radius: 8px; background: alpha(currentColor, 0.06);
   border: 1px solid alpha(currentColor, 0.22); box-shadow: none; }
 .sz-side-reset:hover { background: alpha(currentColor, 0.10); }
-.sz-danger { color: #E01B24; }
+.sz-danger { color: #E01B24; background: transparent; background-image: none;
+  border: 1px solid transparent; box-shadow: none; }
+.sz-danger label { color: #E01B24; }
+.sz-danger:disabled label { color: alpha(#E01B24, 0.5); }
 .sz-danger:hover { background: alpha(#E01B24, 0.14); }
 .sz-danger:disabled { color: alpha(#E01B24, 0.5); }
 .sz-side-handle { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px; }
@@ -192,7 +203,8 @@ window:drop(active), window :drop(active) { outline: none; box-shadow: none; bor
 .sz-prog-header { min-height: 46px; box-shadow: none; }
 .sz-prog-title { font-weight: 700; }
 .sz-prog-body { padding: 18px 24px 20px 24px; }
-.sz-prog-icon { border-radius: 10px; padding: 9px; background: alpha(currentColor, 0.07); }
+.sz-prog-icon { border-radius: 12px; padding: 9px; background: alpha(currentColor, 0.07);
+  border: 1px solid alpha(currentColor, 0.14); }
 .sz-prog-name { font-weight: 700; font-size: 150%; }
 /* Вторичный текст не уменьшаем: при 92 % хинтинг Adwaita Sans округляет
    верхние перекладины «Б»/«П»/«7» в ноль (буквы выглядят обрезанными). */
@@ -203,7 +215,6 @@ window:drop(active), window :drop(active) { outline: none; box-shadow: none; bor
 .sz-prog-bar trough { min-height: 8px; border-radius: 4px; }
 .sz-prog-bar progress { min-height: 8px; border-radius: 4px; }
 .sz-prog-footer { padding: 13px 20px; border-top: 1px solid alpha(currentColor, 0.14); }
-.sz-prog-cancel, .sz-prog-pause { padding: 7px 18px; border-radius: 8px; }
 """
 
 MIDNIGHT_CSS = """
@@ -219,7 +230,7 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight popover, .sz-midnight popover.background
   { background: none; background-color: transparent; border: none; box-shadow: none; }
 .sz-midnight popover > contents { background-color: $surface; color: $text; border: 1px solid $border;
-  border-radius: 10px; box-shadow: 0 6px 22px alpha(black, 0.5); }
+  border-radius: 12px; box-shadow: 0 6px 22px alpha(black, 0.5); }
 .sz-midnight popover > arrow { background-color: $surface; border: 1px solid $border; }
 .sz-midnight popover modelbutton { color: $text; }
 .sz-midnight popover modelbutton:hover { background: $border; }
@@ -230,15 +241,12 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight button:active, .sz-midnight button:checked { background: $border; }
 .sz-midnight button:disabled { opacity: 0.4; }
 .sz-midnight .sz-primary { background: $surface; }
-.sz-midnight button.suggested-action { background: $accent; color: #ffffff; }
-.sz-midnight button.suggested-action label { color: #ffffff; }
-.sz-midnight dialog button, .sz-midnight .sz-framed button { border-color: $border; }
 .sz-midnight .sz-dlg-cancel { background: $border; border: 1px solid $border; border-radius: 8px; padding: 6px 16px; }
 .sz-midnight button.sz-dlg-ok { background: $focus; border: 1px solid $focus; border-radius: 8px; padding: 6px 16px; color: #0E0E43; }
 .sz-midnight button.sz-dlg-ok label { color: #0E0E43; }
 .sz-midnight button.sz-dlg-ok:hover { background: #FFF59B; border-color: #FFF59B; }
 .sz-midnight entry { background: $surface; color: $text; border: 1px solid $border;
-  border-radius: 6px; box-shadow: none; caret-color: $text; }
+  border-radius: 8px; box-shadow: none; caret-color: $text; }
 .sz-midnight entry:focus-within { border-color: $focus; }
 .sz-midnight entry selection, .sz-midnight text selection { background: $accent; color: #ffffff; }
 .sz-midnight treeview.view { background-color: $bg; color: $text; }
@@ -314,16 +322,12 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight textview, .sz-midnight textview text { background: $bg; color: $text; }
 .sz-midnight progressbar trough { background: $surface; border: none; }
 .sz-midnight progressbar progress { background: $focus; border: none; }
-.sz-midnight .sz-prog-icon { background: $surface; }
+.sz-midnight .sz-prog-icon { background: $surface; border-color: $border; }
 .sz-midnight .sz-prog-sub, .sz-midnight .sz-prog-info,
 .sz-midnight .sz-prog-files { color: $soft; opacity: 1; }
 .sz-midnight .sz-prog-bar trough { background: $surface; border: none; }
 .sz-midnight .sz-prog-bar progress { background: $soft; border: none; }
 .sz-midnight .sz-prog-footer { border-top: 1px solid $border; }
-.sz-midnight .sz-prog-cancel { background: transparent; border: 1px solid $surface; color: $text; }
-.sz-midnight .sz-prog-cancel:hover { background: $surface; }
-.sz-midnight .sz-prog-pause { background: $surface; border: 1px solid $surface; color: $text; }
-.sz-midnight .sz-prog-pause:hover { background: $border; }
 .sz-midnight dropdown > button { background: $surface; border: 1px solid $border; }
 .sz-midnight popover.menu listview { background: transparent; }
 .sz-midnight .sz-statusbar { background: $surface; border-top: 1px solid $border; }
@@ -344,7 +348,7 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight switch:checked slider { background: #FFFFFF; }
 .sz-midnight .sz-info-box { background: $surface; border-color: $border; }
 .sz-midnight .sz-sidebar { background: $bg; border-right: 1px solid $border; }
-.sz-midnight .sz-usercard { background: $surface; }
+.sz-midnight .sz-usercard { background: $surface; border-color: $border; }
 .sz-midnight .sz-side-eject:hover { background: $border; }
 .sz-midnight .sz-side-active { background: $surface; box-shadow: inset 3px 0 $focus; }
 .sz-midnight .sz-side-device-row.sz-side-active { background: $surface; box-shadow: none; }
@@ -353,12 +357,12 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-job-action { color: $focus; }
 .sz-midnight .sz-job-bar trough { background: $surface; border: none; }
 .sz-midnight .sz-job-bar progress { background: $focus; border: none; }
-.sz-midnight .sz-job-stop { background: transparent; border: 1px solid $surface; color: $text; }
-.sz-midnight .sz-job-stop:hover { background: $surface; }
-.sz-midnight .sz-job-show { background: $surface; border: 1px solid $surface; color: $text; }
-.sz-midnight .sz-job-show:hover { background: $border; }
-.sz-midnight .sz-prog-hide { background: transparent; border: 1px solid $surface; color: $text; }
-.sz-midnight .sz-prog-hide:hover { background: $surface; }
+.sz-midnight .sz-job-stop, .sz-midnight .sz-job-show, .sz-midnight .sz-prog-hide,
+.sz-midnight .sz-prog-cancel, .sz-midnight .sz-prog-pause
+  { background: transparent; border: 1px solid $border; color: $text; }
+.sz-midnight .sz-job-stop:hover, .sz-midnight .sz-job-show:hover,
+.sz-midnight .sz-prog-hide:hover, .sz-midnight .sz-prog-cancel:hover,
+.sz-midnight .sz-prog-pause:hover { background: $surface; }
 .sz-midnight .sz-hdr { background: $bg; border-bottom: 1px solid $border; }
 .sz-midnight .sz-foot { background: $bg; border-top: 1px solid $border; }
 .sz-midnight paned > separator { background: $border; min-width: 1px; min-height: 1px; }
@@ -376,7 +380,7 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-fav-row { background-color: transparent; border: 1px solid alpha($text, 0.62); }
 .sz-midnight .sz-fav-row.sz-fav-sel { background-color: #49475F; }
 .sz-midnight .sz-fav-num { color: $text; }
-.sz-midnight .sz-fav-field { background-color: #302D45; border: 1px solid #3C3958; color: $text; }
+.sz-midnight .sz-fav-field { background-color: $surface; border: 1px solid $border; color: $text; }
 .sz-midnight .sz-fav-field:focus-within { border-color: $focus; }
 .sz-midnight .sz-fav-field > text > placeholder { color: $muted; }
 .sz-midnight .sz-fav-arrow { color: $muted; }
@@ -386,9 +390,9 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-fav-add { background: transparent; border: 1px dashed alpha($muted, 0.9);
   box-shadow: none; color: $text; }
 .sz-midnight .sz-fav-add:hover { background: alpha($text, 0.05); }
-.sz-midnight .sz-conv-dd > button { background-color: #302D45; border: 1px solid #3C3958;
-  border-radius: 10px; min-height: 34px; padding: 0 10px; color: $text; }
-.sz-midnight .sz-conv-dd > button:hover { background-color: #3C3958; }
+.sz-midnight .sz-conv-dd > button { background-color: $surface; border: 1px solid $border;
+  border-radius: 8px; min-height: 34px; padding: 0 10px; color: $text; }
+.sz-midnight .sz-conv-dd > button:hover { background-color: $border; }
 .sz-midnight .sz-conv-dd > button:focus { border-color: $focus; }
 .sz-midnight .sz-menu-row.sz-menu-dragging { background-color: #49475F; }
 .sz-midnight .sz-side-edit-row:hover { background: alpha($text, 0.07); }
@@ -405,8 +409,10 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-side-add-group.sz-side-drop { background: alpha($focus, 0.18);
   box-shadow: inset 0 0 0 2px $focus; }
 .sz-midnight .sz-danger { color: #F20D14; }
+.sz-midnight .sz-danger label { color: #F20D14; }
 .sz-midnight .sz-danger:hover { background: alpha(#F20D14, 0.16); }
 .sz-midnight .sz-danger:disabled { color: alpha(#F20D14, 0.5); }
+.sz-midnight .sz-danger:disabled label { color: alpha(#F20D14, 0.5); }
 .sz-midnight .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px $focus; }
 .sz-midnight .sz-side-edit-row.sz-drop-before,
 .sz-midnight .sz-side-group-row.sz-drop-before,
@@ -432,6 +438,52 @@ window.sz-midnight { background-color: $bg; color: $text; }
 """
 
 LIGHT_EXTRA_CSS = """
+/* ── светлая и системная схемы: те же ghost-кнопки, что и в midnight ── */
+.sz-light button, .sz-system button
+  { background: transparent; background-image: none; color: inherit;
+    border: 1px solid transparent; box-shadow: none; }
+.sz-light button.sz-dlg-ok, .sz-system button.sz-dlg-ok
+  { background: @theme_selected_bg_color; color: @theme_selected_fg_color;
+    border: 1px solid @theme_selected_bg_color; border-radius: 8px; padding: 6px 16px; }
+.sz-light button.sz-dlg-ok label, .sz-system button.sz-dlg-ok label
+  { color: @theme_selected_fg_color; }
+.sz-light button.sz-dlg-ok:hover, .sz-system button.sz-dlg-ok:hover
+  { background: alpha(@theme_selected_bg_color, 0.85);
+    border-color: alpha(@theme_selected_bg_color, 0.85); }
+.sz-light dropdown > button, .sz-system dropdown > button
+  { background: alpha(currentColor, 0.10); border: 1px solid alpha(currentColor, 0.20);
+    border-radius: 8px; min-height: 34px; color: currentColor; }
+.sz-light dropdown > button:hover, .sz-system dropdown > button:hover
+  { background: alpha(currentColor, 0.16); }
+.sz-light .sz-job-stop, .sz-light .sz-job-show, .sz-light .sz-prog-hide,
+.sz-light .sz-prog-cancel, .sz-light .sz-prog-pause,
+.sz-system .sz-job-stop, .sz-system .sz-job-show, .sz-system .sz-prog-hide,
+.sz-system .sz-prog-cancel, .sz-system .sz-prog-pause
+  { background: transparent; border: 1px solid alpha(currentColor, 0.25); border-radius: 8px; }
+.sz-light .sz-job-stop:hover, .sz-light .sz-job-show:hover, .sz-light .sz-prog-hide:hover,
+.sz-light .sz-prog-cancel:hover, .sz-light .sz-prog-pause:hover,
+.sz-system .sz-job-stop:hover, .sz-system .sz-job-show:hover, .sz-system .sz-prog-hide:hover,
+.sz-system .sz-prog-cancel:hover, .sz-system .sz-prog-pause:hover
+  { background: alpha(currentColor, 0.06); }
+.sz-light .sz-danger, .sz-system .sz-danger { color: #E01B24; }
+.sz-light .sz-danger:disabled, .sz-system .sz-danger:disabled
+  { color: alpha(#E01B24, 0.5); }
+.sz-light .sz-panels-btn, .sz-system .sz-panels-btn
+  { background: alpha(currentColor, 0.08); border: 1px solid alpha(currentColor, 0.18); }
+.sz-light .sz-panels-btn:hover, .sz-system .sz-panels-btn:hover
+  { background: alpha(currentColor, 0.14); }
+.sz-light .sz-radio-card, .sz-system .sz-radio-card
+  { background: alpha(currentColor, 0.03); border: 1px solid alpha(currentColor, 0.16); }
+.sz-light .sz-radio-card:hover, .sz-system .sz-radio-card:hover
+  { background: alpha(currentColor, 0.06); }
+.sz-light .sz-radio-card:checked, .sz-system .sz-radio-card:checked
+  { border-color: @theme_selected_bg_color; background: alpha(@theme_selected_bg_color, 0.08); }
+.sz-light .sz-side-add-group, .sz-light .sz-side-reset,
+.sz-system .sz-side-add-group, .sz-system .sz-side-reset
+  { background: alpha(currentColor, 0.06); border: 1px solid alpha(currentColor, 0.22); }
+.sz-light .sz-side-add-group:hover, .sz-light .sz-side-reset:hover,
+.sz-system .sz-side-add-group:hover, .sz-system .sz-side-reset:hover
+  { background: alpha(currentColor, 0.10); }
 .sz-light .sz-side-active, .sz-system .sz-side-active { background: alpha(currentColor, 0.1); }
 .sz-light .sz-usercard, .sz-system .sz-usercard { background: alpha(currentColor, 0.06); }
 .sz-light .sz-statusbar, .sz-system .sz-statusbar { background: alpha(currentColor, 0.10);
@@ -496,8 +548,8 @@ LIGHT_EXTRA_CSS = """
   { background: transparent; border: 1px dashed alpha(currentColor, 0.35); box-shadow: none; color: currentColor; }
 .sz-light .sz-fav-add:hover, .sz-system .sz-fav-add:hover { background: alpha(currentColor, 0.05); }
 .sz-light .sz-conv-dd > button, .sz-system .sz-conv-dd > button
-  { background-color: alpha(currentColor, 0.10); border: 1px solid alpha(currentColor, 0.18);
-    border-radius: 10px; min-height: 34px; padding: 0 10px; color: currentColor; }
+  { background-color: alpha(currentColor, 0.10); border: 1px solid alpha(currentColor, 0.20);
+    border-radius: 8px; min-height: 34px; padding: 0 10px; color: currentColor; }
 .sz-light .sz-conv-dd > button:hover, .sz-system .sz-conv-dd > button:hover
   { background-color: alpha(currentColor, 0.16); }
 .sz-light .sz-menu-row.sz-menu-dragging, .sz-system .sz-menu-row.sz-menu-dragging
@@ -534,7 +586,8 @@ LIGHT_EXTRA_CSS = """
   { opacity: 0.45; }
 .sz-dark .sz-fav-row { background-color: transparent; border: 1px solid alpha(currentColor, 0.62); }
 .sz-dark .sz-fav-row.sz-fav-sel { background-color: #49475F; }
-.sz-dark .sz-fav-field { background-color: #302D45; border: 1px solid #3C3958; }
+.sz-dark .sz-fav-field { background-color: alpha(currentColor, 0.10);
+  border: 1px solid alpha(currentColor, 0.20); }
 .sz-dark .sz-fav-field > text > placeholder { color: alpha(currentColor, 0.55); }
 .sz-dark .sz-fav-arrow { color: alpha(currentColor, 0.55); }
 .sz-dark .sz-fav-sort { color: currentColor; }
@@ -543,9 +596,10 @@ LIGHT_EXTRA_CSS = """
 .sz-dark .sz-fav-add { background: transparent; border: 1px dashed alpha(currentColor, 0.45);
   box-shadow: none; color: currentColor; }
 .sz-dark .sz-fav-add:hover { background: alpha(currentColor, 0.05); }
-.sz-dark .sz-conv-dd > button { background-color: #302D45; border: 1px solid #3C3958;
-  border-radius: 10px; min-height: 34px; padding: 0 10px; color: #EEEBFA; }
-.sz-dark .sz-conv-dd > button:hover { background-color: #3C3958; }
+.sz-dark .sz-conv-dd > button { background-color: alpha(currentColor, 0.10);
+  border: 1px solid alpha(currentColor, 0.20); border-radius: 8px; min-height: 34px;
+  padding: 0 10px; color: currentColor; }
+.sz-dark .sz-conv-dd > button:hover { background-color: alpha(currentColor, 0.16); }
 .sz-dark .sz-menu-sep { background-color: alpha(#EEEBFA, 0.22); }
 .sz-dark .sz-menu-row.sz-menu-dragging { background-color: #49475F; }
 .sz-dark .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px #FFF59B; }

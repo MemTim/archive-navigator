@@ -27,7 +27,7 @@ class BenchmarkDialog(DlgBase):
         row = hbox(6)
         row.set_halign(Gtk.Align.END)
         self.b_start = Gtk.Button(label=_('Start'))
-        self.b_start.add_css_class('suggested-action')
+        self.b_start.add_css_class('sz-dlg-ok')
         self.b_start.connect('clicked', self._start)
         self.b_stop = Gtk.Button(label=_('Stop'))
         self.b_stop.add_css_class('sz-danger')
