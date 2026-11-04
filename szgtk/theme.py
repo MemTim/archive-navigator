@@ -51,6 +51,27 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
 .sz-side-item { padding: 7px 10px; border-radius: 6px; min-height: 0; }
 .sz-side-device-row { padding: 0; border-radius: 6px; }
 .sz-side-connect-row { padding: 0; border-radius: 6px; }
+/* В режиме правки строка устройства подсвечивается целиком — так же, как
+   плитки мест и избранного. Иначе hover остаётся только на внутренней
+   кнопке и выглядит иначе. */
+.sz-side-device-row.sz-side-device-edit:hover,
+.sz-side-connect-row.sz-side-device-edit:hover
+  { background: alpha(currentColor, 0.08); }
+/* Курсор при перетаскивании всегда находится над целевой строкой, поэтому
+   подсветка цели должна перекрывать hover. */
+.sz-side-device-row.sz-side-device-edit:hover.sz-side-drop,
+.sz-side-connect-row.sz-side-device-edit:hover.sz-side-drop
+  { background: alpha(currentColor, 0.12); }
+.sz-side-device-row.sz-side-device-edit button.sz-side-item,
+.sz-side-connect-row.sz-side-device-edit button.sz-side-item
+  { padding: 2px 10px; }
+.sz-side-device-row.sz-side-device-edit button.sz-side-item,
+.sz-side-device-row.sz-side-device-edit button.sz-side-item:hover,
+.sz-side-device-row.sz-side-device-edit button.sz-side-item:active,
+.sz-side-connect-row.sz-side-device-edit button.sz-side-item,
+.sz-side-connect-row.sz-side-device-edit button.sz-side-item:hover,
+.sz-side-connect-row.sz-side-device-edit button.sz-side-item:active
+  { background: transparent; }
 .sz-side-device-row.sz-menu-dragging,
 .sz-side-connect-row.sz-menu-dragging { opacity: 0.55; }
 .sz-side-eject { padding: 4px; min-width: 26px; min-height: 26px; border-radius: 6px; }
@@ -142,14 +163,17 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
 .sz-side-edit-row { padding: 5px 10px; margin: 0; min-height: 0; }
 .sz-side-name { font-size: 100%; font-weight: 700; opacity: 1; }
 .sz-side-edit-row:hover { background: alpha(currentColor, 0.08); }
-.sz-side-edit-row.sz-side-picked { background: alpha(currentColor, 0.14);
-  box-shadow: inset 0 0 0 1px alpha(currentColor, 0.45); }
-.sz-side-edit-row.sz-side-drop { background: alpha(currentColor, 0.12);
-  box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
+/* Одинаковая подсветка цели переноса для плиток, групп и строк устройств:
+   при наведении перетаскиваемого элемента строка получает ту же заливку
+   и обводку, а линия вставки показывает место. */
+.sz-side-edit-row.sz-side-drop,
+.sz-side-group-row.sz-side-drop,
+.sz-side-device-row.sz-side-drop,
+.sz-side-connect-row.sz-side-drop
+  { background: alpha(currentColor, 0.12);
+    box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
 .sz-side-group-row { border-radius: 6px; }
 .sz-side-group-row:hover { background: alpha(currentColor, 0.06); }
-.sz-side-group-row.sz-side-drop { background: alpha(currentColor, 0.16);
-  box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
 .sz-side-add-group { padding: 8px 12px; margin: 8px 0 2px 0; border-radius: 8px;
   background: alpha(currentColor, 0.06); border: 1px solid alpha(currentColor, 0.22);
   box-shadow: none; }
@@ -396,10 +420,16 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-conv-dd > button:focus { border-color: $focus; }
 .sz-midnight .sz-menu-row.sz-menu-dragging { background-color: #49475F; }
 .sz-midnight .sz-side-edit-row:hover { background: alpha($text, 0.07); }
-.sz-midnight .sz-side-edit-row.sz-side-picked { background: alpha($focus, 0.16);
-  box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
+.sz-midnight .sz-side-device-row.sz-side-device-edit:hover,
+.sz-midnight .sz-side-connect-row.sz-side-device-edit:hover
+  { background: alpha($text, 0.07); }
+.sz-midnight .sz-side-device-row.sz-side-device-edit:hover.sz-side-drop,
+.sz-midnight .sz-side-connect-row.sz-side-device-edit:hover.sz-side-drop
+  { background: alpha($focus, 0.18); }
 .sz-midnight .sz-side-edit-row.sz-side-drop,
-.sz-midnight .sz-side-group-row.sz-side-drop { background: alpha($focus, 0.18);
+.sz-midnight .sz-side-group-row.sz-side-drop,
+.sz-midnight .sz-side-device-row.sz-side-drop,
+.sz-midnight .sz-side-connect-row.sz-side-drop { background: alpha($focus, 0.18);
   box-shadow: inset 0 0 0 2px $focus; }
 .sz-midnight .sz-side-add-group,
 .sz-midnight .sz-side-reset { color: $text; background: $surface;

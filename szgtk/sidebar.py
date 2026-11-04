@@ -308,7 +308,6 @@ class Sidebar(Gtk.Box):
         self.fav_rows = []
         self.device_rows = []
         self.network_rows = []
-        self.picked = None
         self.editing = False
         self._group_popup = None
         self._drag = None
@@ -432,7 +431,6 @@ class Sidebar(Gtk.Box):
 
     def _toggle_edit(self, *a):
         self.editing = not self.editing
-        self.picked = None
         self.group_tools.set_visible(self.editing)
         self.add_group_btn.set_visible(self.editing)
         self.reset_group_btn.set_visible(self.editing)
@@ -1008,16 +1006,10 @@ class Sidebar(Gtk.Box):
             eye.update_property([Gtk.AccessibleProperty.LABEL], [eye.get_tooltip_text()])
             eye.connect('clicked', lambda b, p=item_id: self._toggle_place(p))
             row.append(eye)
-        pick = Gtk.GestureClick()
-        pick.connect('pressed', lambda g, n, x, y, k=kind, i=item_id:
-                     self._pick_tile(k, i) if n == 1 else None)
-        row.add_controller(pick)
         entry = {'id': item_id, 'kind': kind, 'group': group_id, 'row': row, 'eye': eye}
         (self.place_rows if kind == 'place' else self.fav_rows).append(entry)
         self.items.append((os.path.normpath(path), row))
         self.inner.append(row)
-        if self.picked == (kind, item_id):
-            row.add_css_class('sz-side-picked')
 
     def _place_row(self, place_id, icon, label, path, group_id):
         self._tile_row('place', place_id, icon, label, path, group_id,
@@ -1025,13 +1017,6 @@ class Sidebar(Gtk.Box):
 
     def _fav_row(self, path, name, group_id):
         self._tile_row('fav', path, 'folder-symbolic', name, path, group_id)
-
-    def _pick_tile(self, kind, item_id):
-        self.picked = None if self.picked == (kind, item_id) else (kind, item_id)
-        for entry in self.place_rows + self.fav_rows:
-            picked = self.picked == (entry['kind'], entry['id'])
-            (entry['row'].add_css_class if picked
-             else entry['row'].remove_css_class)('sz-side-picked')
 
     def _tile_rows(self):
         return self.place_rows + self.fav_rows
