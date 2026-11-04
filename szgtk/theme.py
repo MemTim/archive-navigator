@@ -64,7 +64,7 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
   { background: alpha(currentColor, 0.12); }
 .sz-side-device-row.sz-side-device-edit button.sz-side-item,
 .sz-side-connect-row.sz-side-device-edit button.sz-side-item
-  { padding: 2px 10px; }
+  { padding: 7px 10px; }
 .sz-side-device-row.sz-side-device-edit button.sz-side-item,
 .sz-side-device-row.sz-side-device-edit button.sz-side-item:hover,
 .sz-side-device-row.sz-side-device-edit button.sz-side-item:active,
@@ -160,7 +160,7 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
   background: transparent; border: none; box-shadow: none; }
 /* Компактные строки боковой панели в режиме редактирования: ручка и «глаз»
    не должны делать плитку выше обычного пункта. */
-.sz-side-edit-row { padding: 5px 10px; margin: 0; min-height: 0; }
+.sz-side-edit-row { padding: 6px 10px; margin: 0; min-height: 0; }
 .sz-side-name { font-size: 100%; font-weight: 700; opacity: 1; }
 .sz-side-edit-row:hover { background: alpha(currentColor, 0.08); }
 /* Одинаковая подсветка цели переноса для плиток, групп и строк устройств:
@@ -193,6 +193,8 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
 .sz-side-handle { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px; }
 .sz-side-eye { padding: 3px; min-width: 0; min-height: 0; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
+/* У «глаза» не должно быть рамки: иначе строка с ним выше строки без него. */
+.sz-side-edit-row .sz-side-eye { border: none; }
 .sz-menu-more { padding: 3px; min-width: 26px; min-height: 26px; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
 .sz-menu-row.sz-menu-selected { background-color: alpha(currentColor, 0.10); }
