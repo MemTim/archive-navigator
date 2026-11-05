@@ -3,8 +3,8 @@ from .imports import *  # noqa: F401,F403
 from .i18n import _
 from .config import Config
 from .display import DISP, format_size
-from .openwith import (add_custom, clear_default, command_argv, custom_commands,
-                       default_command, remove_custom, set_default_command, spawn)
+from .openwith import (clear_default, custom_commands, default_command,
+                       set_default_command, spawn)
 from .theme import _theme, style_window
 from .utils import handle_text_shortcut
 
@@ -733,7 +733,7 @@ class _AppRow(Gtk.ListBoxRow):
     """Строка списка программ: системное приложение или своя команда."""
 
     def __init__(self, key, name, subtitle, icon, app=None, command='',
-                 default=False, on_delete=None):
+                 default=False):
         super().__init__()
         self.key = key
         self.app = app
@@ -762,14 +762,6 @@ class _AppRow(Gtk.ListBoxRow):
             mark.add_css_class('sz-app-default')
             mark.set_tooltip_text(_('Default'))
             box.append(mark)
-        if on_delete is not None:
-            btn = Gtk.Button.new_from_icon_name('user-trash-symbolic')
-            btn.add_css_class('flat')
-            btn.add_css_class('sz-app-del')
-            btn.set_focus_on_click(False)
-            btn.set_tooltip_text(_('Remove custom command'))
-            btn.connect('clicked', lambda b: on_delete())
-            box.append(btn)
         self.set_child(box)
 
 
@@ -818,7 +810,7 @@ class OpenWithDialog(DlgBase):
     def __init__(self, parent, path, on_pick=None):
         super().__init__(title=_('Open with…'), modal=True, transient_for=parent,
                          destroy_with_parent=True)
-        self.set_default_size(600, 700)
+        self.set_default_size(600, 640)
         self.path = path
         self.gfile = Gio.File.new_for_path(path)
         self.conf = getattr(parent, 'conf', None) or Config()
@@ -838,32 +830,6 @@ class OpenWithDialog(DlgBase):
         self.search.connect('search-changed', lambda e: self._filter())
         self.search.connect('activate', lambda e: self._ok())
         root.append(self.search)
-
-        custom = vbox(6, 10)
-        custom.add_css_class('sz-app-custom')
-        title = lbl(_('Custom command'))
-        title.add_css_class('sz-app-custom-title')
-        custom.append(title)
-        self.custom_name = Gtk.Entry(hexpand=True,
-                                     placeholder_text=_('Name (optional)'))
-        custom.append(self.custom_name)
-        line = hbox(6)
-        self.custom_entry = Gtk.Entry(hexpand=True,
-                                      placeholder_text=_('Command, e.g. gimp %f'))
-        self.custom_entry.connect('activate', lambda e: self._add_custom())
-        line.append(self.custom_entry)
-        add = Gtk.Button(label=_('Add'))
-        add.add_css_class('sz-dlg-cancel')
-        add.connect('clicked', lambda b: self._add_custom())
-        line.append(add)
-        custom.append(line)
-        hint = lbl(_('The file path is appended to the command. '
-                     'Use %f where the path should go.'))
-        hint.add_css_class('sz-muted')
-        hint.set_wrap(True)
-        hint.set_xalign(0.0)
-        custom.append(hint)
-        root.append(custom)
 
         self.list = Gtk.ListBox()
         self.list.set_selection_mode(Gtk.SelectionMode.SINGLE)
@@ -963,8 +929,7 @@ class OpenWithDialog(DlgBase):
             command = item['command']
             row = _AppRow('cmd:' + command, item['name'], command,
                           'utilities-terminal-symbolic', command=command,
-                          default=('cmd:' + command) == default_key,
-                          on_delete=lambda c=command: self._remove_custom(c))
+                          default=('cmd:' + command) == default_key)
             self.rows.append(row)
             self.list.append(row)
         for app in self.apps:
@@ -998,29 +963,6 @@ class OpenWithDialog(DlgBase):
         chosen = next((r for r in visible if r.key == select_key), None) or visible[0]
         self.list.select_row(chosen)
 
-    def _add_custom(self, *a):
-        command = self.custom_entry.get_text().strip()
-        if not command:
-            self.custom_entry.grab_focus()
-            return None
-        try:
-            command_argv(command, self.path)
-        except ValueError as e:
-            alert(self, _('Invalid command'), str(e))
-            return None
-        name = self.custom_name.get_text().strip()
-        add_custom(self.conf, name, command)
-        self.conf.save()
-        self.custom_entry.set_text('')
-        self.custom_name.set_text('')
-        self._reload(select_key='cmd:' + command)
-        return 'cmd:' + command
-
-    def _remove_custom(self, command):
-        remove_custom(self.conf, command)
-        self.conf.save()
-        self._reload()
-
     def _remember(self, app):
         ok = False
         if self.ctype:
@@ -1045,9 +987,6 @@ class OpenWithDialog(DlgBase):
         return ok
 
     def _ok(self):
-        if self.custom_entry.get_text().strip():
-            if self._add_custom() is None:
-                return
         row = self.list.get_selected_row()
         if not isinstance(row, _AppRow) or not row.get_visible():
             return

@@ -17,7 +17,6 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
 /* ── «Открыть с помощью…»: свои команды и список программ ── */
 .sz-app-custom { background: alpha(currentColor, 0.05);
   border: 1px solid alpha(currentColor, 0.22); border-radius: 10px; padding: 10px; }
-.sz-app-custom-title { font-weight: 700; }
 .sz-app-scroll { background: alpha(currentColor, 0.03);
   border: 1px solid alpha(currentColor, 0.16); border-radius: 10px; }
 .sz-app-list { background: transparent; }

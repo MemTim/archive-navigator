@@ -176,6 +176,11 @@ RU.update({
     'Default': 'По умолчанию', 'Nothing found': 'Ничего не найдено',
     'Invalid command': 'Некорректная команда',
     'Remove custom command': 'Удалить свою команду',
+    'Custom commands': 'Свои команды',
+    'Commands appear in “Open with…” and can be set as the default program for a file type.':
+        'Команды показываются в «Открыть с помощью…» и могут быть выбраны '
+        'программой по умолчанию для типа файлов.',
+    'No custom commands yet': 'Своих команд пока нет',
     'Always open with this application': 'Всегда открывать этой программой',
     'Cannot set the default application': 'Не удалось назначить программу по умолчанию',
     'Add to archive…': 'Добавить в архив…', 'Add to "{0}.7z"': 'Добавить в «{0}.7z»',

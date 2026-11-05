@@ -10,6 +10,7 @@ from .dialogs import (DlgBase, _tab_label, alert, button_row, choose, grid_row,
 from .archive_dialogs import (EXTRACT_PATHMODES, FORMATS, LEVELS,
                               OVERWRITE_MODES)
 from .favorites import make as fav_make, name as fav_name, path as fav_path
+from .openwith import (add_custom, command_argv, custom_commands)
 from .menu_layout import (ALL_CONTEXTS, CONTEXTS, LABELS as MENU_LABELS,
                           contexts as load_menu_contexts, default_contexts,
                           group_selected,
@@ -816,6 +817,46 @@ class SettingsDialog(DlgBase):
         pg.append(self.menu_panel)
         self.menu_scroll = msw
         self._menu_rebuild()
+
+        pg.append(title(_('Custom commands')))
+        chint = lbl(_('Commands appear in “Open with…” and can be set as the '
+                      'default program for a file type.'))
+        chint.add_css_class('sz-muted')
+        chint.set_wrap(True)
+        pg.append(chint)
+        self.custom_model = custom_commands(c)
+        self.custom_box = vbox(2)
+        self.custom_box.add_css_class('sz-custom-list')
+        pg.append(self.custom_box)
+        self.custom_empty = lbl(_('No custom commands yet'))
+        self.custom_empty.add_css_class('sz-muted')
+        pg.append(self.custom_empty)
+        form = vbox(6, 10)
+        form.add_css_class('sz-app-custom')
+        self.custom_name = Gtk.Entry(hexpand=True,
+                                     placeholder_text=_('Name (optional)'))
+        self.custom_name.set_activates_default(False)
+        self.custom_name.connect('activate', lambda e: self.custom_cmd.grab_focus())
+        form.append(self.custom_name)
+        cline = hbox(6)
+        self.custom_cmd = Gtk.Entry(hexpand=True,
+                                    placeholder_text=_('Command, e.g. gimp %f'))
+        self.custom_cmd.set_activates_default(False)
+        self.custom_cmd.connect('activate', lambda e: self._custom_add())
+        cline.append(self.custom_cmd)
+        cadd = Gtk.Button(label=_('Add'))
+        cadd.add_css_class('sz-dlg-cancel')
+        cadd.connect('clicked', lambda b: self._custom_add())
+        cline.append(cadd)
+        form.append(cline)
+        fhint = lbl(_('The file path is appended to the command. '
+                      'Use %f where the path should go.'))
+        fhint.add_css_class('sz-muted')
+        fhint.set_wrap(True)
+        form.append(fhint)
+        pg.append(form)
+        self._custom_rebuild()
+
         for dd in (self.dd_smode, self.dd_sunits, self.dd_sdec, self.dd_sgrp, self.dd_dstyle, self.dd_tstyle):
             dd.connect('notify::selected', self._update_preview)
         self.e_custom.connect('changed', self._update_preview)
@@ -1132,6 +1173,66 @@ class SettingsDialog(DlgBase):
         self.menu_layout = normalize_menu_layout(self.menu_layout)
         self._menu_rebuild()
 
+    # ---------- Свои команды ----------
+    def _custom_rebuild(self):
+        ch = self.custom_box.get_first_child()
+        while ch is not None:
+            nxt = ch.get_next_sibling()
+            self.custom_box.remove(ch)
+            ch = nxt
+        for item in self.custom_model:
+            row = hbox(10)
+            row.add_css_class('sz-app-row')
+            set_margins(row, 4)
+            img = Gtk.Image.new_from_icon_name('utilities-terminal-symbolic')
+            img.set_pixel_size(20)
+            row.append(img)
+            texts = vbox(2)
+            texts.set_hexpand(True)
+            name = lbl(item['name'])
+            name.add_css_class('sz-app-name')
+            name.set_ellipsize(Pango.EllipsizeMode.END)
+            texts.append(name)
+            command = lbl(item['command'])
+            command.add_css_class('sz-app-sub')
+            command.set_ellipsize(Pango.EllipsizeMode.END)
+            texts.append(command)
+            row.append(texts)
+            btn = Gtk.Button.new_from_icon_name('user-trash-symbolic')
+            btn.add_css_class('flat')
+            btn.add_css_class('sz-app-del')
+            btn.set_focus_on_click(False)
+            btn.set_tooltip_text(_('Remove custom command'))
+            btn.update_property([Gtk.AccessibleProperty.LABEL],
+                                [_('Remove custom command')])
+            btn.connect('clicked', lambda b, c=item['command']:
+                        self._custom_delete(c))
+            row.append(btn)
+            self.custom_box.append(row)
+        self.custom_empty.set_visible(not self.custom_model)
+
+    def _custom_add(self, *a):
+        command = self.custom_cmd.get_text().strip()
+        if not command:
+            self.custom_cmd.grab_focus()
+            return
+        try:
+            command_argv(command, '')
+        except ValueError as e:
+            alert(self, _('Invalid command'), str(e))
+            return
+        model = {'open_with_custom': list(self.custom_model)}
+        add_custom(model, self.custom_name.get_text().strip(), command)
+        self.custom_model = model['open_with_custom']
+        self.custom_cmd.set_text('')
+        self.custom_name.set_text('')
+        self._custom_rebuild()
+
+    def _custom_delete(self, command):
+        self.custom_model = [item for item in self.custom_model
+                             if item['command'] != command]
+        self._custom_rebuild()
+
     # ---------- Язык ----------
     def _page_language(self):
         pg = vbox(10, 16)
@@ -1262,6 +1363,11 @@ class SettingsDialog(DlgBase):
             item_id: [context_id for context_id in ALL_CONTEXTS if context_id in allowed]
             for item_id, allowed in self.menu_contexts.items()
             if set(allowed) != default_contexts(item_id)}
+        commands = {item['command'] for item in self.custom_model}
+        c['open_with_custom'] = self.custom_model
+        c['open_with_defaults'] = {
+            key: value for key, value in (c.get('open_with_defaults') or {}).items()
+            if value in commands}
         c['accels'] = {h[0]: self.accels[h[0]] for h in HOTKEYS if self.accels[h[0]] != h[3]}
         self._fav_collect()
         favs, n = {}, 0
