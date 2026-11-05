@@ -9,6 +9,7 @@ from .utils import (TAR_COMPOUND, accel_pretty, accel_variants, archive_stem,
                     has_text_target, human, is_archive_name, parse_accel,
                     unique_path)
 from .config import Config
+from .openwith import default_command, spawn
 from .backend import Job, Result, SevenZip, needs_password
 from .theme import apply_theme, style_window
 from .icons import clear_icon_cache
@@ -1384,7 +1385,7 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         if cmd:
             try:
-                subprocess.Popen(shlex.split(cmd) + [local], start_new_session=True)
+                spawn(cmd, local)
                 return
             except (OSError, ValueError) as e:
                 alert(self, _('Cannot start the program'), str(e))
@@ -1402,6 +1403,15 @@ class MainWindow(Gtk.ApplicationWindow):
     def launch_default(self, path):
         gfile = Gio.File.new_for_path(path)
         ctype = self._content_type(gfile)
+        custom = default_command(self.conf, path, ctype)
+        if custom:
+            try:
+                spawn(custom, path)
+                return
+            except (OSError, ValueError) as e:
+                alert(self, _('Cannot start the program'), str(e))
+                self.open_with(path)
+                return
         app = None
         if ctype:
             try:

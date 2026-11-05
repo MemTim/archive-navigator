@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 from .imports import *  # noqa: F401,F403
 from .i18n import _
+from .config import Config
 from .display import DISP, format_size
+from .openwith import (add_custom, clear_default, command_argv, custom_commands,
+                       default_command, remove_custom, set_default_command, spawn)
 from .theme import _theme, style_window
 from .utils import handle_text_shortcut
 
@@ -726,15 +729,99 @@ class HistoryDialog(DlgBase):
         root.append(sw)
 
 
+class _AppRow(Gtk.ListBoxRow):
+    """Строка списка программ: системное приложение или своя команда."""
+
+    def __init__(self, key, name, subtitle, icon, app=None, command='',
+                 default=False, on_delete=None):
+        super().__init__()
+        self.key = key
+        self.app = app
+        self.command = command
+        self.search_text = ' '.join((name, subtitle or '', key)).lower()
+        self.add_css_class('sz-app-row')
+        box = hbox(10)
+        set_margins(box, 6)
+        img = icon if isinstance(icon, Gtk.Widget) else Gtk.Image.new_from_icon_name(icon)
+        img.set_pixel_size(20)
+        box.append(img)
+        texts = vbox(2)
+        texts.set_hexpand(True)
+        title = lbl(name)
+        title.add_css_class('sz-app-name')
+        title.set_ellipsize(Pango.EllipsizeMode.END)
+        texts.append(title)
+        if subtitle:
+            sub = lbl(subtitle)
+            sub.add_css_class('sz-app-sub')
+            sub.set_ellipsize(Pango.EllipsizeMode.END)
+            texts.append(sub)
+        box.append(texts)
+        if default:
+            mark = Gtk.Image.new_from_icon_name('object-select-symbolic')
+            mark.add_css_class('sz-app-default')
+            mark.set_tooltip_text(_('Default'))
+            box.append(mark)
+        if on_delete is not None:
+            btn = Gtk.Button.new_from_icon_name('user-trash-symbolic')
+            btn.add_css_class('flat')
+            btn.add_css_class('sz-app-del')
+            btn.set_focus_on_click(False)
+            btn.set_tooltip_text(_('Remove custom command'))
+            btn.connect('clicked', lambda b: on_delete())
+            box.append(btn)
+        self.set_child(box)
+
+
+def _app_key(app):
+    try:
+        ident = app.get_id()
+    except Exception:
+        ident = None
+    if ident:
+        return str(ident)
+    try:
+        return str(app.get_executable() or '')
+    except Exception:
+        return ''
+
+
+def _app_icon(app):
+    try:
+        icon = app.get_icon()
+    except Exception:
+        icon = None
+    if icon is not None:
+        try:
+            return Gtk.Image.new_from_gicon(icon)
+        except Exception:
+            pass
+    return Gtk.Image.new_from_icon_name('application-x-executable-symbolic')
+
+
+def _app_subtitle(app):
+    try:
+        line = app.get_commandline()
+    except Exception:
+        line = ''
+    if not line:
+        try:
+            line = app.get_executable() or ''
+        except Exception:
+            line = ''
+    return line
+
+
 class OpenWithDialog(DlgBase):
-    """Выбор программы для файла с возможностью запомнить выбор."""
+    """Выбор программы для файла: поиск, свои команды и значение по умолчанию."""
 
     def __init__(self, parent, path, on_pick=None):
         super().__init__(title=_('Open with…'), modal=True, transient_for=parent,
                          destroy_with_parent=True)
-        self.set_default_size(480, 440)
+        self.set_default_size(600, 700)
         self.path = path
         self.gfile = Gio.File.new_for_path(path)
+        self.conf = getattr(parent, 'conf', None) or Config()
         self.ctype = None
         try:
             info = self.gfile.query_info('standard::content-type',
@@ -745,47 +832,244 @@ class OpenWithDialog(DlgBase):
         root = vbox(8, 12)
         self.set_child(root)
         root.append(lbl(_('Choose an application to open the file:')))
-        self.chooser = (Gtk.AppChooserWidget(content_type=self.ctype, vexpand=True, hexpand=True)
-                        if self.ctype else Gtk.AppChooserWidget(vexpand=True, hexpand=True))
-        self.chooser.set_show_all(True)
-        self.chooser.set_show_other(True)
-        root.append(self.chooser)
-        self.chk = Gtk.CheckButton(label=_('Always open with this application'))
+
+        self.search = Gtk.SearchEntry()
+        self.search.set_placeholder_text(_('Search applications…'))
+        self.search.connect('search-changed', lambda e: self._filter())
+        self.search.connect('activate', lambda e: self._ok())
+        root.append(self.search)
+
+        custom = vbox(6, 10)
+        custom.add_css_class('sz-app-custom')
+        title = lbl(_('Custom command'))
+        title.add_css_class('sz-app-custom-title')
+        custom.append(title)
+        self.custom_name = Gtk.Entry(hexpand=True,
+                                     placeholder_text=_('Name (optional)'))
+        custom.append(self.custom_name)
+        line = hbox(6)
+        self.custom_entry = Gtk.Entry(hexpand=True,
+                                      placeholder_text=_('Command, e.g. gimp %f'))
+        self.custom_entry.connect('activate', lambda e: self._add_custom())
+        line.append(self.custom_entry)
+        add = Gtk.Button(label=_('Add'))
+        add.add_css_class('sz-dlg-cancel')
+        add.connect('clicked', lambda b: self._add_custom())
+        line.append(add)
+        custom.append(line)
+        hint = lbl(_('The file path is appended to the command. '
+                     'Use %f where the path should go.'))
+        hint.add_css_class('sz-muted')
+        hint.set_wrap(True)
+        hint.set_xalign(0.0)
+        custom.append(hint)
+        root.append(custom)
+
+        self.list = Gtk.ListBox()
+        self.list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.list.add_css_class('sz-app-list')
+        self.list.connect('row-activated', lambda *a: self._ok())
+        self.scroll = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
+        self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scroll.set_min_content_height(320)
+        self.scroll.set_min_content_width(500)
+        self.scroll.add_css_class('sz-app-scroll')
+        self.scroll.set_child(self.list)
+        self.empty = lbl(_('Nothing found'), 0.5)
+        self.empty.add_css_class('sz-muted')
+        self.empty.set_valign(Gtk.Align.CENTER)
+        self.empty.set_vexpand(True)
+        self.stack = Gtk.Stack(vexpand=True)
+        self.stack.add_named(self.scroll, 'list')
+        self.stack.add_named(self.empty, 'empty')
+        self.stack.set_visible_child_name('list')
+        root.append(self.stack)
+
+        self.chk = Gtk.CheckButton(label=_('Use by default for this file type'))
         root.append(self.chk)
         row, ok = button_row(self, _('Open'), self._ok)
         root.append(row)
         self.on_pick = on_pick
+        self.apps = self._load_apps()
+        self.rows = []
+        self._reload()
+        GLib.idle_add(lambda: (self.search.grab_focus(), False)[1])
+
+    def _load_apps(self):
+        """Приложения для типа файла, затем все установленные — без дублей."""
+        typed, every, seen = [], [], set()
+
+        def add(app, bucket):
+            if app is None:
+                return
+            try:
+                if not app.should_show():
+                    return
+            except Exception:
+                pass
+            key = _app_key(app)
+            if not key or key in seen:
+                return
+            seen.add(key)
+            bucket.append(app)
+
+        if self.ctype:
+            try:
+                add(Gio.AppInfo.get_default_for_type(self.ctype, False), typed)
+            except GLib.Error:
+                pass
+            try:
+                for app in Gio.AppInfo.get_all_for_type(self.ctype):
+                    add(app, typed)
+            except GLib.Error:
+                pass
+        try:
+            for app in Gio.AppInfo.get_all():
+                add(app, every)
+        except GLib.Error:
+            pass
+
+        def sort_key(app):
+            return (app.get_display_name() or app.get_name() or '').casefold()
+
+        every.sort(key=sort_key)
+        return typed + every
+
+    def _default_key(self):
+        command = default_command(self.conf, self.path, self.ctype)
+        if command:
+            return 'cmd:' + command
+        if self.ctype:
+            try:
+                app = Gio.AppInfo.get_default_for_type(self.ctype, False)
+            except GLib.Error:
+                app = None
+            if app is not None:
+                return 'app:' + _app_key(app)
+        return ''
+
+    def _reload(self, select_key=None):
+        current = self.list.get_selected_row()
+        if select_key is None and isinstance(current, _AppRow):
+            select_key = current.key
+        child = self.list.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self.list.remove(child)
+            child = nxt
+        self.rows = []
+        default_key = self._default_key()
+        for item in custom_commands(self.conf):
+            command = item['command']
+            row = _AppRow('cmd:' + command, item['name'], command,
+                          'utilities-terminal-symbolic', command=command,
+                          default=('cmd:' + command) == default_key,
+                          on_delete=lambda c=command: self._remove_custom(c))
+            self.rows.append(row)
+            self.list.append(row)
+        for app in self.apps:
+            key = 'app:' + _app_key(app)
+            if not key[4:]:
+                continue
+            name = app.get_display_name() or app.get_name() or key[4:]
+            row = _AppRow(key, name, _app_subtitle(app), _app_icon(app),
+                          app=app, default=key == default_key)
+            self.rows.append(row)
+            self.list.append(row)
+        self._filter(select_key)
+
+    def _filter(self, select_key=None):
+        query = self.search.get_text().strip().lower()
+        visible = []
+        for row in self.rows:
+            show = not query or query in row.search_text
+            row.set_visible(show)
+            if show:
+                visible.append(row)
+        if not visible:
+            self.stack.set_visible_child_name('empty')
+            return
+        self.stack.set_visible_child_name('list')
+        current = self.list.get_selected_row()
+        if select_key is None and isinstance(current, _AppRow) and current.get_visible():
+            return
+        if select_key is None:
+            select_key = self._default_key()
+        chosen = next((r for r in visible if r.key == select_key), None) or visible[0]
+        self.list.select_row(chosen)
+
+    def _add_custom(self, *a):
+        command = self.custom_entry.get_text().strip()
+        if not command:
+            self.custom_entry.grab_focus()
+            return None
+        try:
+            command_argv(command, self.path)
+        except ValueError as e:
+            alert(self, _('Invalid command'), str(e))
+            return None
+        name = self.custom_name.get_text().strip()
+        add_custom(self.conf, name, command)
+        self.conf.save()
+        self.custom_entry.set_text('')
+        self.custom_name.set_text('')
+        self._reload(select_key='cmd:' + command)
+        return 'cmd:' + command
+
+    def _remove_custom(self, command):
+        remove_custom(self.conf, command)
+        self.conf.save()
+        self._reload()
 
     def _remember(self, app):
         ok = False
         if self.ctype:
             try:
-                app.set_as_default_for_type(self.ctype)
-                ok = True
+                if app.set_as_default_for_type(self.ctype):
+                    ok = True
             except GLib.Error:
                 pass
         if not ok:
-            ext = os.path.splitext(self.path)[1]
+            ext = os.path.splitext(self.path)[1].lower().lstrip('.')
             if ext:
                 try:
-                    app.set_as_default_for_extension(ext)
-                    ok = True
+                    if app.set_as_default_for_extension(ext):
+                        ok = True
                 except GLib.Error:
                     pass
-        if not ok:
+        if ok:
+            clear_default(self.conf, self.path, self.ctype)
+            self.conf.save()
+        else:
             alert(self, _('Cannot set the default application'))
+        return ok
 
     def _ok(self):
-        app = self.chooser.get_app_info()
-        if app is None:
+        if self.custom_entry.get_text().strip():
+            if self._add_custom() is None:
+                return
+        row = self.list.get_selected_row()
+        if not isinstance(row, _AppRow) or not row.get_visible():
             return
         if self.chk.get_active():
-            self._remember(app)
+            if row.command:
+                set_default_command(self.conf, row.command, self.path, self.ctype)
+                self.conf.save()
+            elif row.app is not None and not self._remember(row.app):
+                return
         self.close()
-        if self.on_pick is not None:
-            self.on_pick(app, self.gfile)
+        if self.on_pick is not None and row.app is not None:
+            self.on_pick(row.app, self.gfile)
+            return
+        if row.command:
+            try:
+                spawn(row.command, self.path)
+            except (OSError, ValueError) as e:
+                alert(self, _('Cannot start the program'), str(e))
+            return
+        if row.app is None:
             return
         try:
-            app.launch([self.gfile], None)
+            row.app.launch([self.gfile], None)
         except GLib.Error as e:
             alert(self, _('Cannot open file'), e.message)

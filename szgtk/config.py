@@ -11,6 +11,8 @@ class Config(dict):
         'hide_sidebar': False, 'hide_panels_button': False,
         'editor': '', 'viewer': '', 'width': 1100, 'height': 700,
         'last_dir': '', 'add_format': '7z', 'add_level': 5,
+        # «Открыть с помощью…»: свои команды и программы по умолчанию
+        'open_with_custom': [], 'open_with_defaults': {},
         # оформление
         'design': 'classic', 'scheme': 'midnight', 'density': 'normal', 'show_hints': True,
         # язык / горячие клавиши

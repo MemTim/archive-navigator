@@ -14,6 +14,22 @@ entry, spinbutton, dropdown > button, .sz-fav-field, .sz-conv-dd > button
 /* ── кнопки: у обычных (ghost) прозрачная обводка во всех схемах ── */
 button { box-shadow: none; }
 button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
+/* ── «Открыть с помощью…»: свои команды и список программ ── */
+.sz-app-custom { background: alpha(currentColor, 0.05);
+  border: 1px solid alpha(currentColor, 0.22); border-radius: 10px; padding: 10px; }
+.sz-app-custom-title { font-weight: 700; }
+.sz-app-scroll { background: alpha(currentColor, 0.03);
+  border: 1px solid alpha(currentColor, 0.16); border-radius: 10px; }
+.sz-app-list { background: transparent; }
+.sz-app-row { border-radius: 8px; min-height: 40px; }
+.sz-app-row:hover { background: alpha(currentColor, 0.07); }
+.sz-app-row:selected { background: alpha(currentColor, 0.13); color: inherit; }
+.sz-app-name { font-weight: 600; }
+.sz-app-sub { font-size: 88%; opacity: 0.62; }
+.sz-app-default { color: @theme_selected_bg_color; }
+.sz-app-del { padding: 4px; min-width: 26px; min-height: 26px; border-radius: 6px;
+  background: transparent; border: none; box-shadow: none; color: #C01C28; }
+.sz-app-del:hover { background: alpha(#C01C28, 0.14); }
 .sz-toolbar { padding: 3px 6px; }
 .sz-toolbar button { padding: 3px 10px; border-radius: 6px; min-height: 0; min-width: 0; }
 .sz-toolbar-h button { padding: 6px 12px; }
@@ -458,6 +474,16 @@ window.sz-midnight { background-color: $bg; color: $text; }
   box-shadow: inset 0 -3px 0 0 $focus; }
 .sz-midnight .sz-menu-row.sz-menu-selected { background-color: alpha($focus, 0.16);
   box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
+.sz-midnight .sz-app-custom { background: $surface; border-color: $border; }
+.sz-midnight .sz-app-scroll { background: $bg; border-color: $border; }
+.sz-midnight .sz-app-row:hover { background: $border; }
+.sz-midnight .sz-app-row:selected { background: $surface;
+  box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
+.sz-midnight .sz-app-name { color: $text; }
+.sz-midnight .sz-app-sub { color: $muted; opacity: 1; }
+.sz-midnight .sz-app-default { color: $focus; }
+.sz-midnight .sz-app-del { color: #F20D14; }
+.sz-midnight .sz-app-del:hover { background: alpha(#F20D14, 0.16); }
 .sz-midnight .sz-menu-group { color: $focus; background: alpha($focus, 0.12); }
 .sz-midnight .sz-menu-group:hover { background: alpha($focus, 0.20); }
 .sz-midnight .sz-menu-handle, .sz-midnight .sz-menu-eye, .sz-midnight .sz-menu-more
@@ -564,6 +590,25 @@ LIGHT_EXTRA_CSS = """
 .sz-light .sz-dlg-cancel, .sz-system .sz-dlg-cancel
   { background: alpha(currentColor, 0.10); border: 1px solid alpha(currentColor, 0.18); border-radius: 8px;
     padding: 6px 16px; }
+.sz-light .sz-app-custom, .sz-system .sz-app-custom
+  { background: alpha(currentColor, 0.04); border-color: alpha(currentColor, 0.18); }
+.sz-light .sz-app-scroll, .sz-system .sz-app-scroll
+  { background: @theme_base_color; border-color: alpha(currentColor, 0.16); }
+.sz-light .sz-app-row:hover, .sz-system .sz-app-row:hover
+  { background: alpha(currentColor, 0.07); }
+.sz-light .sz-app-row:selected, .sz-system .sz-app-row:selected
+  { background: alpha(currentColor, 0.13); }
+.sz-light .sz-app-sub, .sz-system .sz-app-sub
+  { color: alpha(currentColor, 0.62); opacity: 1; }
+.sz-light .sz-app-row:selected .sz-app-name, .sz-system .sz-app-row:selected .sz-app-name
+  { color: @theme_fg_color; }
+.sz-light .sz-app-row:selected .sz-app-sub, .sz-system .sz-app-row:selected .sz-app-sub
+  { color: alpha(@theme_fg_color, 0.62); }
+.sz-light .sz-app-default, .sz-system .sz-app-default
+  { color: @theme_selected_bg_color; }
+.sz-light .sz-app-del, .sz-system .sz-app-del { color: #C01C28; }
+.sz-light .sz-app-del:hover, .sz-system .sz-app-del:hover
+  { background: alpha(#C01C28, 0.14); }
 .sz-light .sz-fav-row, .sz-system .sz-fav-row
   { background-color: transparent; border: 1px solid alpha(currentColor, 0.25); }
 .sz-light .sz-fav-row.sz-fav-sel, .sz-system .sz-fav-row.sz-fav-sel
