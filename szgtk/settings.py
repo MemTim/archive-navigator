@@ -11,10 +11,11 @@ from .archive_dialogs import (EXTRACT_PATHMODES, FORMATS, LEVELS,
                               OVERWRITE_MODES)
 from .favorites import make as fav_make, name as fav_name, path as fav_path
 from .openwith import (add_custom, command_argv, custom_commands)
-from .menu_layout import (ALL_CONTEXTS, CONTEXTS, LABELS as MENU_LABELS,
-                          contexts as load_menu_contexts, default_contexts,
-                          group_selected,
-                          hidden as menu_hidden, load as load_menu_layout,
+from .menu_layout import (ALL_CONTEXTS, CONTEXTS, CUSTOM_PREFIX, command_id,
+                          contexts as load_menu_contexts,
+                          default_contexts, group_selected,
+                          hidden as menu_hidden, item_label,
+                          load as load_menu_layout,
                           normalize as normalize_menu_layout)
 
 # ───────────────────────────── Горячие клавиши ─────────────────────────────
@@ -805,7 +806,7 @@ class SettingsDialog(DlgBase):
         self.menu_drop = None
         self.menu_panel = vbox(0)
         self.menu_panel.add_css_class('sz-menu')
-        self.menu_panel.set_size_request(324, -1)
+        self.menu_panel.set_size_request(360, -1)
         self.menu_panel.set_halign(Gtk.Align.START)
         self.menu_panel.set_hexpand(False)
         self.menu_box = vbox(0)
@@ -816,21 +817,16 @@ class SettingsDialog(DlgBase):
         self.menu_panel.append(msw)
         pg.append(self.menu_panel)
         self.menu_scroll = msw
+        self.custom_model = custom_commands(c)
         self._menu_rebuild()
 
         pg.append(title(_('Custom commands')))
-        chint = lbl(_('Commands appear in “Open with…” and can be set as the '
-                      'default program for a file type.'))
+        chint = lbl(_('Commands are added to the context menu above and to '
+                      '“Open with…”. Use the eye and the three-dot button '
+                      'to hide a command or choose where it appears.'))
         chint.add_css_class('sz-muted')
         chint.set_wrap(True)
         pg.append(chint)
-        self.custom_model = custom_commands(c)
-        self.custom_box = vbox(2)
-        self.custom_box.add_css_class('sz-custom-list')
-        pg.append(self.custom_box)
-        self.custom_empty = lbl(_('No custom commands yet'))
-        self.custom_empty.add_css_class('sz-muted')
-        pg.append(self.custom_empty)
         form = vbox(6, 10)
         form.add_css_class('sz-app-custom')
         self.custom_name = Gtk.Entry(hexpand=True,
@@ -855,7 +851,6 @@ class SettingsDialog(DlgBase):
         fhint.set_wrap(True)
         form.append(fhint)
         pg.append(form)
-        self._custom_rebuild()
 
         for dd in (self.dd_smode, self.dd_sunits, self.dd_sdec, self.dd_sgrp, self.dd_dstyle, self.dd_tstyle):
             dd.connect('notify::selected', self._update_preview)
@@ -945,6 +940,13 @@ class SettingsDialog(DlgBase):
                                   '\n' + format_date(time.time() - 3 * 86400, cfg))
 
     # ---------- Контекстное меню ----------
+    def _menu_label(self, item_id):
+        if item_id.startswith(CUSTOM_PREFIX):
+            for item in self.custom_model:
+                if command_id(item['command']) == item_id:
+                    return item['name']
+        return _(item_label(self.conf, item_id))
+
     def _menu_rebuild(self):
         adj = self.menu_scroll.get_vadjustment() if hasattr(self, 'menu_scroll') else None
         value = adj.get_value() if adj is not None else 0
@@ -983,11 +985,11 @@ class SettingsDialog(DlgBase):
         click.set_button(1)
         click.connect('released', self._menu_row_clicked, item_id)
         row.add_controller(click)
-        label = lbl(_(MENU_LABELS[item_id]))
+        label = lbl(self._menu_label(item_id))
         label.add_css_class('sz-menu-label')
         label.set_hexpand(True)
         label.set_ellipsize(Pango.EllipsizeMode.END)
-        label.set_tooltip_text(_(MENU_LABELS[item_id]))
+        label.set_tooltip_text(self._menu_label(item_id))
         handle = Gtk.DrawingArea()
         handle.set_content_width(22)
         handle.set_content_height(22)
@@ -1011,16 +1013,32 @@ class SettingsDialog(DlgBase):
         more = Gtk.Button()
         more.add_css_class('sz-menu-more')
         more.set_child(_drawing(20, 20, _menu_more, 'sz-menu-more-icon'))
-        conditions_label = _('Display conditions') + ': ' + _(MENU_LABELS[item_id])
+        conditions_label = _('Display conditions') + ': ' + self._menu_label(item_id)
         more.set_tooltip_text(conditions_label)
         more.update_property([Gtk.AccessibleProperty.LABEL], [conditions_label])
         more.connect('clicked', lambda b, i=item_id: self._menu_conditions(b, i))
         if item_id in self.menu_contexts:
             more.add_css_class('sz-menu-filtered')
+        if item_id.startswith(CUSTOM_PREFIX):
+            icon = Gtk.Image.new_from_icon_name('utilities-terminal-symbolic')
+            icon.set_pixel_size(16)
+            icon.add_css_class('sz-menu-cmd-icon')
+            row.append(icon)
         row.append(label)
         row.append(handle)
         row.append(eye)
         row.append(more)
+        if item_id.startswith(CUSTOM_PREFIX):
+            command = item_id[len(CUSTOM_PREFIX):]
+            delete = Gtk.Button.new_from_icon_name('user-trash-symbolic')
+            delete.add_css_class('flat')
+            delete.add_css_class('sz-app-del')
+            delete.set_focus_on_click(False)
+            delete.set_tooltip_text(_('Remove custom command'))
+            delete.update_property([Gtk.AccessibleProperty.LABEL],
+                                   [_('Remove custom command')])
+            delete.connect('clicked', lambda b, c=command: self._custom_delete(c))
+            row.append(delete)
         self.menu_rows.append({'id': item_id, 'row': row, 'label': label,
                                'eye': eye, 'more': more})
         return row
@@ -1174,42 +1192,24 @@ class SettingsDialog(DlgBase):
         self._menu_rebuild()
 
     # ---------- Свои команды ----------
-    def _custom_rebuild(self):
-        ch = self.custom_box.get_first_child()
-        while ch is not None:
-            nxt = ch.get_next_sibling()
-            self.custom_box.remove(ch)
-            ch = nxt
+    def _custom_section(self):
+        sections = [section for item_id, section in self.menu_layout
+                    if item_id.startswith(CUSTOM_PREFIX)]
+        if sections:
+            return sections[-1]
+        return max((section for _item_id, section in self.menu_layout),
+                   default=0) + 1
+
+    def _custom_sync_layout(self):
+        known = {item_id for item_id, _section in self.menu_layout}
+        section = self._custom_section()
         for item in self.custom_model:
-            row = hbox(10)
-            row.add_css_class('sz-app-row')
-            set_margins(row, 4)
-            img = Gtk.Image.new_from_icon_name('utilities-terminal-symbolic')
-            img.set_pixel_size(20)
-            row.append(img)
-            texts = vbox(2)
-            texts.set_hexpand(True)
-            name = lbl(item['name'])
-            name.add_css_class('sz-app-name')
-            name.set_ellipsize(Pango.EllipsizeMode.END)
-            texts.append(name)
-            command = lbl(item['command'])
-            command.add_css_class('sz-app-sub')
-            command.set_ellipsize(Pango.EllipsizeMode.END)
-            texts.append(command)
-            row.append(texts)
-            btn = Gtk.Button.new_from_icon_name('user-trash-symbolic')
-            btn.add_css_class('flat')
-            btn.add_css_class('sz-app-del')
-            btn.set_focus_on_click(False)
-            btn.set_tooltip_text(_('Remove custom command'))
-            btn.update_property([Gtk.AccessibleProperty.LABEL],
-                                [_('Remove custom command')])
-            btn.connect('clicked', lambda b, c=item['command']:
-                        self._custom_delete(c))
-            row.append(btn)
-            self.custom_box.append(row)
-        self.custom_empty.set_visible(not self.custom_model)
+            item_id = command_id(item['command'])
+            if item_id not in known:
+                self.menu_layout.append((item_id, section))
+                known.add(item_id)
+        self.menu_layout = normalize_menu_layout(self.menu_layout)
+        self._menu_rebuild()
 
     def _custom_add(self, *a):
         command = self.custom_cmd.get_text().strip()
@@ -1224,14 +1224,22 @@ class SettingsDialog(DlgBase):
         model = {'open_with_custom': list(self.custom_model)}
         add_custom(model, self.custom_name.get_text().strip(), command)
         self.custom_model = model['open_with_custom']
+        item_id = command_id(command)
+        self.menu_hidden.discard(item_id)
+        self.menu_contexts.pop(item_id, None)
         self.custom_cmd.set_text('')
         self.custom_name.set_text('')
-        self._custom_rebuild()
+        self._custom_sync_layout()
 
     def _custom_delete(self, command):
         self.custom_model = [item for item in self.custom_model
                              if item['command'] != command]
-        self._custom_rebuild()
+        item_id = command_id(command)
+        self.menu_layout = [(i, s) for i, s in self.menu_layout if i != item_id]
+        self.menu_layout = normalize_menu_layout(self.menu_layout)
+        self.menu_hidden.discard(item_id)
+        self.menu_contexts.pop(item_id, None)
+        self._menu_rebuild()
 
     # ---------- Язык ----------
     def _page_language(self):

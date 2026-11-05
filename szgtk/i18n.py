@@ -177,10 +177,11 @@ RU.update({
     'Invalid command': 'Некорректная команда',
     'Remove custom command': 'Удалить свою команду',
     'Custom commands': 'Свои команды',
-    'Commands appear in “Open with…” and can be set as the default program for a file type.':
-        'Команды показываются в «Открыть с помощью…» и могут быть выбраны '
-        'программой по умолчанию для типа файлов.',
-    'No custom commands yet': 'Своих команд пока нет',
+    'Commands are added to the context menu above and to “Open with…”. '
+    'Use the eye and the three-dot button to hide a command or choose where it appears.':
+        'Команды добавляются в контекстное меню выше и в «Открыть с помощью…». '
+        'С помощью «глаза» и кнопки с тремя точками можно скрыть команду '
+        'или выбрать, где она показывается.',
     'Always open with this application': 'Всегда открывать этой программой',
     'Cannot set the default application': 'Не удалось назначить программу по умолчанию',
     'Add to archive…': 'Добавить в архив…', 'Add to "{0}.7z"': 'Добавить в «{0}.7z»',

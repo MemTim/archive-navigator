@@ -9,7 +9,7 @@ from .utils import (TAR_COMPOUND, accel_pretty, accel_variants, archive_stem,
                     has_text_target, human, is_archive_name, parse_accel,
                     unique_path)
 from .config import Config
-from .openwith import default_command, spawn
+from .openwith import custom_commands, default_command, spawn
 from .backend import Job, Result, SevenZip, needs_password
 from .theme import apply_theme, style_window
 from .icons import clear_icon_cache
@@ -28,7 +28,9 @@ from .ops import (HASHES, add_thread_limit, count_conflicts, default_stem,
                   groups_from_model, names_for, prepare_add, widget_xy)
 from .panel import COLUMNS, LIST_SIZES, TILE_SIZES, Panel
 from .menu import MenuBar, MenuLayer
-from .menu_layout import (contexts as menu_context_restrictions, hidden as hidden_menu_items,
+from .menu_layout import (command_id,
+                          contexts as menu_context_restrictions,
+                          hidden as hidden_menu_items,
                           load as load_menu_layout)
 from . import vfs
 from .favorites import make as fav_make, name as fav_name, path as fav_path
@@ -212,6 +214,7 @@ class MainWindow(Gtk.ApplicationWindow):
         A('open-inside', self.op_open_inside)
         A('open-outside', self.op_open_outside)
         A('open-with', self.op_open_with)
+        A('custom-cmd', self.op_custom_cmd, param='s')
         A('run', self.op_run)
         A('view', self.op_view)
         A('edit', self.op_edit)
@@ -1046,6 +1049,11 @@ class MainWindow(Gtk.ApplicationWindow):
         restrictions = menu_context_restrictions(self.conf)
         entries, subs = {}, {}
 
+        if fs:
+            for item in custom_commands(self.conf):
+                entries[command_id(item['command'])] = (
+                    item['name'], 'win.custom-cmd', item['command'])
+
         if sel:
             entries['open'] = (_('Open'), 'win.open-sel')
         if sel and fs and not sel[0].is_dir:
@@ -1114,9 +1122,15 @@ class MainWindow(Gtk.ApplicationWindow):
                 if section_menu is not None and section_menu.get_n_items():
                     menu.append_section(None, section_menu)
                 section_menu, current_section = Gio.Menu(), section
-            label, action = entries[item_id]
+            entry = entries[item_id]
+            label, action = entry[0], entry[1]
+            target = entry[2] if len(entry) > 2 else None
             if action is None:
                 section_menu.append_submenu(label, subs[item_id])
+            elif target is not None:
+                it = Gio.MenuItem.new(esc_label(label), None)
+                it.set_action_and_target_value(action, GLib.Variant.new_string(target))
+                section_menu.append_item(it)
             else:
                 section_menu.append(label, action)
         if section_menu is not None and section_menu.get_n_items():
@@ -1378,6 +1392,21 @@ class MainWindow(Gtk.ApplicationWindow):
         self.temp_dirs.append(tmp)
         self._watch_admin(local, path)
         return local
+
+    def op_custom_cmd(self, action, param):
+        """Запустить свою команду для выделенных файлов или текущей папки."""
+        command = param.get_string() if param is not None else ''
+        panel = self.active
+        if not command or panel is None or panel.mode != 'fs':
+            return
+        sel = panel.selected()
+        paths = [item.full for item in sel] if sel else [panel.path]
+        for path in paths:
+            try:
+                spawn(command, path)
+            except (OSError, ValueError) as e:
+                alert(self, _('Cannot start the program'), str(e))
+                return
 
     def open_external(self, path, cmd=''):
         local = self._prepare_open(path)

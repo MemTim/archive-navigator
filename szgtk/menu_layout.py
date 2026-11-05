@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Порядок и видимость пунктов контекстного меню."""
 from .i18n import N_
+from .openwith import custom_commands
 
 # (id, подпись для настроек, раздел по умолчанию)
 MENU_ITEMS = [
@@ -91,9 +92,40 @@ LABELS = {item_id: label for item_id, label, _section in MENU_ITEMS}
 SECTIONS = {item_id: section for item_id, _label, section in MENU_ITEMS}
 DEFAULT_LAYOUT = [(item_id, section) for item_id, _label, section in MENU_ITEMS]
 
+CUSTOM_PREFIX = 'cmd:'
+CUSTOM_SECTION = max(SECTIONS.values(), default=0) + 1
+_CUSTOM_CONTEXTS = _SELECTION | {'empty'}
+
+
+def command_id(command):
+    """Идентификатор своего пункта меню для команды."""
+    return CUSTOM_PREFIX + command
+
+
+def is_custom(item_id):
+    return isinstance(item_id, str) and item_id.startswith(CUSTOM_PREFIX)
+
+
+def custom_items(conf):
+    """Пары (id пункта, подпись) для своих команд из конфига."""
+    return [(command_id(item['command']), item['name'])
+            for item in custom_commands(conf)]
+
+
+def item_label(conf, item_id):
+    """Подпись пункта меню: встроенного или своего."""
+    if is_custom(item_id):
+        for cid, name in custom_items(conf):
+            if cid == item_id:
+                return name
+        return item_id[len(CUSTOM_PREFIX):]
+    return LABELS.get(item_id, item_id)
+
 
 def default_contexts(item_id):
     """Ситуации показа пункта по умолчанию (без пользовательских правок)."""
+    if is_custom(item_id):
+        return set(_CUSTOM_CONTEXTS)
     return set(DEFAULT_CONTEXTS.get(item_id, _ALL))
 
 
@@ -150,7 +182,9 @@ def group_selected(layout, item_ids):
 def load(conf):
     """Загрузить раскладку из конфигурации, дополнив её новыми пунктами."""
     raw = conf.get('menu_layout') or []
+    custom = custom_items(conf)
     known = {item_id for item_id, _label, _section in MENU_ITEMS}
+    known.update(item_id for item_id, _name in custom)
     layout, seen = [], set()
     for entry in raw:
         if not isinstance(entry, (list, tuple)) or not entry:
@@ -158,28 +192,34 @@ def load(conf):
         item_id = entry[0]
         if item_id not in known or item_id in seen:
             continue
-        section = entry[1] if len(entry) > 1 else SECTIONS[item_id]
+        section = entry[1] if len(entry) > 1 else SECTIONS.get(item_id, CUSTOM_SECTION)
         try:
             section = int(section)
         except (TypeError, ValueError):
-            section = SECTIONS[item_id]
+            section = SECTIONS.get(item_id, CUSTOM_SECTION)
         layout.append((item_id, section))
         seen.add(item_id)
     for item_id, section in DEFAULT_LAYOUT:
         if item_id not in seen:
             layout.append((item_id, section))
+    for item_id, _name in custom:
+        if item_id not in seen:
+            layout.append((item_id, CUSTOM_SECTION))
+            seen.add(item_id)
     return normalize(layout)
 
 
 def hidden(conf):
     """Множество скрытых пунктов; неизвестные id отбрасываются."""
     known = {item_id for item_id, _label, _section in MENU_ITEMS}
+    known.update(item_id for item_id, _name in custom_items(conf))
     return {item_id for item_id in (conf.get('menu_hidden') or []) if item_id in known}
 
 
 def contexts(conf):
     """Разрешённые ситуации для пунктов: id -> множество ситуаций."""
     known_items = {item_id for item_id, _label, _section in MENU_ITEMS}
+    known_items.update(item_id for item_id, _name in custom_items(conf))
     known_contexts = set(ALL_CONTEXTS)
     result = {}
     raw = conf.get('menu_contexts') or {}

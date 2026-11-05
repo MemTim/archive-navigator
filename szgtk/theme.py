@@ -212,6 +212,7 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
 .sz-side-edit-row .sz-side-eye { border: none; }
 .sz-menu-more { padding: 3px; min-width: 26px; min-height: 26px; border-radius: 6px;
   background: transparent; border: none; box-shadow: none; }
+.sz-menu-cmd-icon { opacity: 0.72; }
 .sz-menu-row.sz-menu-selected { background-color: alpha(currentColor, 0.10); }
 .sz-menu-row.sz-menu-dragging { opacity: 0.55; }
 .sz-menu-row.sz-menu-drop { box-shadow: inset 0 0 0 2px alpha(currentColor, 0.55); }
