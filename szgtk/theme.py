@@ -12,8 +12,9 @@ BASE_CSS = """
 entry, spinbutton, dropdown > button, .sz-fav-field, .sz-conv-dd > button
   { border-radius: 8px; min-height: 34px; }
 /* В настройках рамка поля ввода совпадает по ширине с выпадающим списком:
-   компенсируем внутренние горизонтальные отступы записи. */
-.sz-settings entry.sz-field { margin-left: -9px; margin-right: -9px; }
+   убираем внутренние горизонтальные отступы записи и возвращаем их тексту. */
+.sz-settings entry.sz-field { padding-left: 0; padding-right: 0; }
+.sz-settings entry.sz-field > text { margin-left: 9px; margin-right: 9px; }
 /* …и по высоте: у выпадающих списков кнопка выше поля ввода. */
 .sz-settings .sz-field { min-height: 46px; }
 /* ── кнопки: у обычных (ghost) прозрачная обводка во всех схемах ── */
