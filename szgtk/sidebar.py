@@ -307,6 +307,7 @@ class Sidebar(Gtk.Box):
         self.place_rows = []
         self.fav_rows = []
         self.item_labels = {}
+        self.section_labels = {}
         self.device_rows = []
         self.network_rows = []
         self.editing = False
@@ -707,16 +708,27 @@ class Sidebar(Gtk.Box):
         row.append(handle)
         row.append(eye)
         row.append(more)
+        self._group_context_menu(row, group)
         self.group_rows.append({'id': group_id, 'row': row, 'eye': eye,
                                 'group': group, 'label': label})
         self.inner.append(row)
+
+    def _group_context_menu(self, widget, group):
+        """Правый щелчок по группе открывает то же меню, что и «⋮»."""
+        click = Gtk.GestureClick()
+        click.set_button(3)
+        click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        click.connect('pressed',
+                      lambda g, n, x, y, gr=group, w=widget:
+                      self._group_menu(gr, w))
+        widget.add_controller(click)
 
     def _group_label_pressed(self, gesture, n_press, group):
         if n_press == 2:
             gesture.set_state(Gtk.EventSequenceState.CLAIMED)
             self._rename_group(group)
 
-    def _group_menu(self, group, button):
+    def _group_menu(self, group, anchor):
         if self._group_popup is not None:
             self._group_popup.popdown()
             self._group_popup = None
@@ -767,7 +779,7 @@ class Sidebar(Gtk.Box):
         delete.connect('clicked', do_delete)
         box.append(delete)
         pop.set_child(box)
-        pop.set_parent(button)
+        pop.set_parent(anchor)
         pop.connect('closed', self._on_group_popup_closed)
         self._group_popup = pop
         pop.popup()
@@ -894,9 +906,12 @@ class Sidebar(Gtk.Box):
         group_id = group['id']
         default = str(group.get('title') or '') or group_title(group)
         row = next((r for r in self.group_rows if r['id'] == group_id), None)
-        if row is not None and row.get('label') is not None:
+        label = row.get('label') if row is not None else None
+        if label is None:
+            label = self.section_labels.get(group_id)
+        if label is not None:
             self._begin_inline_rename(
-                row['label'], default,
+                label, default,
                 lambda name: self._apply_group_title(group_id, name))
             return
 
@@ -1359,9 +1374,12 @@ class Sidebar(Gtk.Box):
         self._sync_model()
         self.rebuild()
 
-    def _section(self, text):
+    def _section(self, text, group=None):
         l = lbl(text)
         l.add_css_class('sz-section')
+        if group is not None:
+            self.section_labels[group['id']] = l
+            self._group_context_menu(l, group)
         self.inner.append(l)
 
     def _item(self, icon, text, path, role='place'):
@@ -2527,6 +2545,7 @@ class Sidebar(Gtk.Box):
         self.place_rows = []
         self.fav_rows = []
         self.item_labels = {}
+        self.section_labels = {}
         self.device_rows = []
         self.network_rows = []
         favs_present = bool(self._favorite_entries())
@@ -2537,7 +2556,7 @@ class Sidebar(Gtk.Box):
             if self.editing:
                 self._group_header(group)
             elif not hidden and (content or (gtype == 'favorites' and not favs_present)):
-                self._section(group_title(group))
+                self._section(group_title(group), group)
             if hidden:
                 continue
             if content:
