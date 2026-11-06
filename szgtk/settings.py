@@ -5,7 +5,7 @@ from .display import DISP, format_date, format_size
 from .utils import accel_label, accel_variants
 from .icons import (FLAG_LINK, FLAG_NOREAD, FLAG_NOWRITE, clear_icon_cache,
                     make_icon_pixbuf)
-from .dialogs import (DlgBase, _tab_label, alert, button_row, choose, grid_row,
+from .dialogs import (DlgBase, _tab_label, alert, button_row, choose,
                       hbox, lbl, make_dd, set_margins, vbox)
 from .archive_dialogs import (EXTRACT_PATHMODES, FORMATS, LEVELS,
                               OVERWRITE_MODES)
@@ -370,6 +370,29 @@ class SettingsDialog(DlgBase):
         brow, ok = button_row(self, _('OK'), self._ok)
         root.append(brow)
 
+    def _field_row(self, grid, row, text, widget, extra=None, label_width=260):
+        """Строка формы: подписи одной ширины, поля ввода и выбора — тоже."""
+        grid.set_hexpand(True)
+        widget.set_hexpand(True)
+        widget.add_css_class('sz-field')
+        label = lbl(text)
+        label.set_size_request(label_width, -1)
+        label.set_wrap(True)
+        label.set_max_width_chars(20 if extra is not None else 26)
+        label.set_xalign(0)
+        if extra is None:
+            grid.attach(label, 0, row, 1, 1)
+        else:
+            # Значок-превью живёт в колонке подписи, чтобы поле выбора
+            # сохранило ту же ширину, что и на остальных страницах.
+            cell = hbox(6)
+            extra.set_valign(Gtk.Align.CENTER)
+            cell.append(label)
+            cell.append(extra)
+            grid.attach(cell, 0, row, 1, 1)
+        grid.attach(widget, 1, row, 1, 1)
+        return label
+
     # ---------- Общие ----------
     def _page_general(self):
         c = self.conf
@@ -386,11 +409,11 @@ class SettingsDialog(DlgBase):
         g = Gtk.Grid(row_spacing=8, column_spacing=12)
         self.dd_start = make_dd([_('Home folder'), _('Last used folder')],
                                 1 if c['restore_last_dir'] else 0)
-        grid_row(g, 0, _('On startup:'), self.dd_start)
+        self._field_row(g, 0, _('On startup:'), self.dd_start)
         self.e_view = Gtk.Entry(hexpand=True, text=c['viewer'], placeholder_text='xdg-open')
         self.e_edit = Gtk.Entry(hexpand=True, text=c['editor'], placeholder_text='xdg-open')
-        grid_row(g, 1, _('Viewer:'), self.e_view)
-        grid_row(g, 2, _('Editor:'), self.e_edit)
+        self._field_row(g, 1, _('Viewer:'), self.e_view)
+        self._field_row(g, 2, _('Editor:'), self.e_edit)
         fm = c['add_format'] if c['add_format'] in FORMATS else '7z'
         lv = [x[0] for x in LEVELS]
         self.dd_fmt = make_dd(FORMATS, FORMATS.index(fm))
@@ -399,10 +422,10 @@ class SettingsDialog(DlgBase):
         pm = [x[0] for x in EXTRACT_PATHMODES]
         self.dd_over = make_dd([_(x[1]) for x in OVERWRITE_MODES], ov.index(c['extract_overwrite']) if c['extract_overwrite'] in ov else 0)
         self.dd_pm = make_dd([_(x[1]) for x in EXTRACT_PATHMODES], pm.index(c['extract_pathmode']) if c['extract_pathmode'] in pm else 0)
-        grid_row(g, 3, _('Default archive format:'), self.dd_fmt)
-        grid_row(g, 4, _('Default compression level:'), self.dd_lvl)
-        grid_row(g, 5, _('Default overwrite mode:'), self.dd_over)
-        grid_row(g, 6, _('Default path mode:'), self.dd_pm)
+        self._field_row(g, 3, _('Default archive format:'), self.dd_fmt)
+        self._field_row(g, 4, _('Default compression level:'), self.dd_lvl)
+        self._field_row(g, 5, _('Default overwrite mode:'), self.dd_over)
+        self._field_row(g, 6, _('Default path mode:'), self.dd_pm)
         pg.append(g)
         self.c_ta = Gtk.CheckButton(label=_('Select files by typing their name'))
         self.c_ta.set_active(bool(c['typeahead']))
@@ -411,7 +434,7 @@ class SettingsDialog(DlgBase):
         self.sp_ta = Gtk.SpinButton.new_with_range(0, 10000, 100)
         self.sp_ta.set_value(int(c['typeahead_timeout']))
         self.sp_ta.set_tooltip_text(_('Typed text is cleared after this pause. 0 — only Esc clears it.'))
-        grid_row(g2, 0, _('Reset typed text after (ms):'), self.sp_ta)
+        self._field_row(g2, 0, _('Reset typed text after (ms):'), self.sp_ta)
         pg.append(g2)
         n = lbl(_('Type a name (e.g. "Docu") to select the first match; Esc or a pause clears the text.'))
         n.add_css_class('sz-muted')
@@ -606,13 +629,13 @@ class SettingsDialog(DlgBase):
         dn = [x[0] for x in DENSITIES]
         self.dd_scheme = make_dd([_(x[1]) for x in SCHEMES], sc.index(c['scheme']) if c['scheme'] in sc else 0)
         self.dd_density = make_dd([_(x[1]) for x in DENSITIES], dn.index(c['density']) if c['density'] in dn else 1)
-        grid_row(g, 0, _('Color scheme:'), self.dd_scheme)
-        grid_row(g, 1, _('Row density:'), self.dd_density)
+        self._field_row(g, 0, _('Color scheme:'), self.dd_scheme)
+        self._field_row(g, 1, _('Row density:'), self.dd_density)
         bp = [x[0] for x in BADGE_PLATES]
         current_plate = c.get('badge_plate', 'white')
         self.dd_badge_plate = make_dd([_(x[1]) for x in BADGE_PLATES],
                                       bp.index(current_plate) if current_plate in bp else 0)
-        grid_row(g, 2, _('Badge background:'), self.dd_badge_plate)
+        self._field_row(g, 2, _('Badge background:'), self.dd_badge_plate)
         pg.append(g)
         self.c_hints = Gtk.CheckButton(label=_('Show shortcut hints in the status bar'))
         self.c_hints.set_active(bool(c['show_hints']))
@@ -726,10 +749,10 @@ class SettingsDialog(DlgBase):
         self.dd_sgrp = make_dd([_(x[1]) for x in SIZE_GROUP_CHOICES], idx(SIZE_GROUP_CHOICES, c['size_group']))
         self.c_sbyte = Gtk.CheckButton(label=_('Show "B" after byte counts'))
         self.c_sbyte.set_active(bool(c['size_bytes_unit']))
-        grid_row(g, 0, _('Size format:'), self.dd_smode)
-        grid_row(g, 1, _('Units:'), self.dd_sunits)
-        grid_row(g, 2, _('Decimal places:'), self.dd_sdec)
-        grid_row(g, 3, _('Thousands separator:'), self.dd_sgrp)
+        self._field_row(g, 0, _('Size format:'), self.dd_smode)
+        self._field_row(g, 1, _('Units:'), self.dd_sunits)
+        self._field_row(g, 2, _('Decimal places:'), self.dd_sdec)
+        self._field_row(g, 3, _('Thousands separator:'), self.dd_sgrp)
         pg.append(g)
         pg.append(self.c_sbyte)
         pg.append(title(_('Date and time')))
@@ -738,9 +761,9 @@ class SettingsDialog(DlgBase):
         self.dd_tstyle = make_dd([_(x[1]) for x in TIME_STYLE_CHOICES], idx(TIME_STYLE_CHOICES, c['time_style']))
         self.e_custom = Gtk.Entry(hexpand=True, text=c['date_custom'], placeholder_text='%d.%m.%Y %H:%M')
         self.e_custom.set_tooltip_text('%Y %m %d %H %M %S %b %B %a %A %p %I')
-        grid_row(g2, 0, _('Date format:'), self.dd_dstyle)
-        grid_row(g2, 1, _('Time format:'), self.dd_tstyle)
-        grid_row(g2, 2, _('Custom pattern:'), self.e_custom)
+        self._field_row(g2, 0, _('Date format:'), self.dd_dstyle)
+        self._field_row(g2, 1, _('Time format:'), self.dd_tstyle)
+        self._field_row(g2, 2, _('Custom pattern:'), self.e_custom)
         pg.append(g2)
         self.lbl_preview = lbl('')
         self.lbl_preview.set_wrap(True)
@@ -759,10 +782,7 @@ class SettingsDialog(DlgBase):
             dd = make_dd([_(x[1]) for x in BADGE_CHOICES], idx(BADGE_CHOICES, c[key]))
             img = Gtk.Image()
             img.set_pixel_size(48)
-            row = hbox(10)
-            row.append(dd)
-            row.append(img)
-            grid_row(g4, r, _(text), row)
+            self._field_row(g4, r, _(text), dd, extra=img, label_width=206)
             dd.connect('notify::selected', self._update_preview)
             self.badge_dd[key], self.badge_img[key] = dd, (img, flag)
         pg.append(g4)
@@ -770,7 +790,7 @@ class SettingsDialog(DlgBase):
         pg.append(title(_('View')))
         g3 = Gtk.Grid(row_spacing=8, column_spacing=12)
         self.dd_view = make_dd([_(x[1]) for x in VIEW_MODES], idx(VIEW_MODES, c['view_mode']))
-        grid_row(g3, 0, _('Default view:'), self.dd_view)
+        self._field_row(g3, 0, _('Default view:'), self.dd_view)
         pg.append(g3)
         self.c_thumbs = Gtk.CheckButton(label=_('Show thumbnails in tile view'))
         self.c_thumbs.set_active(bool(c['show_thumbs']))
@@ -827,29 +847,27 @@ class SettingsDialog(DlgBase):
         chint.add_css_class('sz-muted')
         chint.set_wrap(True)
         pg.append(chint)
-        form = vbox(6, 10)
-        form.add_css_class('sz-app-custom')
+        form = Gtk.Grid(row_spacing=8, column_spacing=12)
+        form.set_hexpand(True)
         self.custom_name = Gtk.Entry(hexpand=True,
-                                     placeholder_text=_('Name (optional)'))
+                                     placeholder_text=_('Optional'))
         self.custom_name.set_activates_default(False)
         self.custom_name.connect('activate', lambda e: self.custom_cmd.grab_focus())
-        form.append(self.custom_name)
-        cline = hbox(6)
-        self.custom_cmd = Gtk.Entry(hexpand=True,
-                                    placeholder_text=_('Command, e.g. gimp %f'))
+        self._field_row(form, 0, _('Name:'), self.custom_name)
+        self.custom_cmd = Gtk.Entry(hexpand=True, placeholder_text='gimp %f')
         self.custom_cmd.set_activates_default(False)
         self.custom_cmd.connect('activate', lambda e: self._custom_add())
-        cline.append(self.custom_cmd)
-        cadd = Gtk.Button(label=_('Add'))
-        cadd.add_css_class('sz-dlg-cancel')
-        cadd.connect('clicked', lambda b: self._custom_add())
-        cline.append(cadd)
-        form.append(cline)
+        self._field_row(form, 1, _('Command:'), self.custom_cmd)
         fhint = lbl(_('The file path is appended to the command. '
                       'Use %f where the path should go.'))
         fhint.add_css_class('sz-muted')
         fhint.set_wrap(True)
-        form.append(fhint)
+        form.attach(fhint, 1, 2, 1, 1)
+        cadd = Gtk.Button(label=_('Add'))
+        cadd.add_css_class('sz-dlg-cancel')
+        cadd.set_halign(Gtk.Align.END)
+        cadd.connect('clicked', lambda b: self._custom_add())
+        form.attach(cadd, 1, 3, 1, 1)
         pg.append(form)
 
         for dd in (self.dd_smode, self.dd_sunits, self.dd_sdec, self.dd_sgrp, self.dd_dstyle, self.dd_tstyle):
@@ -1250,8 +1268,9 @@ class SettingsDialog(DlgBase):
         codes = [x[0] for x in LANGUAGES]
         self.dd_lang = make_dd([_(x[1]) for x in LANGUAGES],
                                codes.index(self.conf['language']) if self.conf['language'] in codes else 0)
-        self.dd_lang.set_halign(Gtk.Align.START)
-        pg.append(self.dd_lang)
+        lang_grid = Gtk.Grid(column_spacing=12)
+        self._field_row(lang_grid, 0, '', self.dd_lang)
+        pg.append(lang_grid)
         n = lbl(_('The window is reloaded when the design or language changes.'))
         n.add_css_class('sz-muted')
         pg.append(n)

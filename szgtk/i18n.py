@@ -176,6 +176,8 @@ RU.update({
     'Default': 'По умолчанию', 'Nothing found': 'Ничего не найдено',
     'Invalid command': 'Некорректная команда',
     'Remove custom command': 'Удалить свою команду',
+    'Optional': 'Необязательно',
+    'Command:': 'Команда:',
     'Custom commands': 'Свои команды',
     'Commands are added to the context menu above and to “Open with…”. '
     'Use the eye and the three-dot button to hide a command or choose where it appears.':

@@ -11,12 +11,13 @@ BASE_CSS = """
 /* ── поля ввода и выпадающие списки: одна обводка и один радиус ── */
 entry, spinbutton, dropdown > button, .sz-fav-field, .sz-conv-dd > button
   { border-radius: 8px; min-height: 34px; }
+/* В настройках рамка поля ввода совпадает по ширине с выпадающим списком:
+   компенсируем внутренние горизонтальные отступы записи. */
+.sz-settings entry.sz-field { margin-left: -9px; margin-right: -9px; }
 /* ── кнопки: у обычных (ghost) прозрачная обводка во всех схемах ── */
 button { box-shadow: none; }
 button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
-/* ── «Открыть с помощью…»: свои команды и список программ ── */
-.sz-app-custom { background: alpha(currentColor, 0.05);
-  border: 1px solid alpha(currentColor, 0.22); border-radius: 10px; padding: 10px; }
+/* ── «Открыть с помощью…»: список программ ── */
 .sz-app-scroll { background: alpha(currentColor, 0.03);
   border: 1px solid alpha(currentColor, 0.16); border-radius: 10px; }
 .sz-app-list { background: transparent; }
@@ -474,7 +475,6 @@ window.sz-midnight { background-color: $bg; color: $text; }
   box-shadow: inset 0 -3px 0 0 $focus; }
 .sz-midnight .sz-menu-row.sz-menu-selected { background-color: alpha($focus, 0.16);
   box-shadow: inset 0 0 0 1px alpha($focus, 0.45); }
-.sz-midnight .sz-app-custom { background: $surface; border-color: $border; }
 .sz-midnight .sz-app-scroll { background: $bg; border-color: $border; }
 .sz-midnight .sz-app-row:hover { background: $border; }
 .sz-midnight .sz-app-row:selected { background: $surface;
@@ -590,8 +590,6 @@ LIGHT_EXTRA_CSS = """
 .sz-light .sz-dlg-cancel, .sz-system .sz-dlg-cancel
   { background: alpha(currentColor, 0.10); border: 1px solid alpha(currentColor, 0.18); border-radius: 8px;
     padding: 6px 16px; }
-.sz-light .sz-app-custom, .sz-system .sz-app-custom
-  { background: alpha(currentColor, 0.04); border-color: alpha(currentColor, 0.18); }
 .sz-light .sz-app-scroll, .sz-system .sz-app-scroll
   { background: @theme_base_color; border-color: alpha(currentColor, 0.16); }
 .sz-light .sz-app-row:hover, .sz-system .sz-app-row:hover
