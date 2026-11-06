@@ -374,6 +374,7 @@ class SettingsDialog(DlgBase):
         """Строка формы: подписи одной ширины, поля ввода и выбора — тоже."""
         grid.set_hexpand(True)
         widget.set_hexpand(True)
+        widget.set_valign(Gtk.Align.CENTER)
         widget.add_css_class('sz-field')
         label = lbl(text)
         label.set_size_request(label_width, -1)

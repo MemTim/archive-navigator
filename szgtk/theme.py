@@ -14,6 +14,8 @@ entry, spinbutton, dropdown > button, .sz-fav-field, .sz-conv-dd > button
 /* В настройках рамка поля ввода совпадает по ширине с выпадающим списком:
    компенсируем внутренние горизонтальные отступы записи. */
 .sz-settings entry.sz-field { margin-left: -9px; margin-right: -9px; }
+/* …и по высоте: у выпадающих списков кнопка выше поля ввода. */
+.sz-settings .sz-field { min-height: 46px; }
 /* ── кнопки: у обычных (ghost) прозрачная обводка во всех схемах ── */
 button { box-shadow: none; }
 button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
