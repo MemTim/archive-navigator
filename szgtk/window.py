@@ -1191,10 +1191,13 @@ class MainWindow(Gtk.ApplicationWindow):
 
         def done(new):
             new = (new or '').strip()
-            if not new:
+            if not new or new == fav_name(v):
                 return
             self.conf['favorites'][key] = fav_make(fav_path(v), new)
             self._fav_changed()
+        if self.sidebar is not None and self.sidebar.rename_favorite(
+                fav_path(v), fav_name(v), done):
+            return
         PromptDialog(self, _('Rename favorite'), _('Name:'), fav_name(v), _('OK'), done).present()
 
     # ───────────── панели ─────────────

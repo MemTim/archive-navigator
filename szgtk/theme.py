@@ -181,6 +181,9 @@ button.sz-dlg-ok { border-radius: 8px; padding: 6px 16px; }
    не должны делать плитку выше обычного пункта. */
 .sz-side-edit-row { padding: 6px 10px; margin: 0; min-height: 0; }
 .sz-side-name { font-size: 100%; font-weight: 700; opacity: 1; }
+/* Поле переименования прямо в строке боковой панели: не выше обычной строки. */
+.sz-side-inline { font-weight: 700; min-height: 0; padding: 1px 6px; }
+.sz-side-inline > text { min-height: 20px; }
 .sz-side-edit-row:hover { background: alpha(currentColor, 0.08); }
 /* Одинаковая подсветка цели переноса для плиток, групп и строк устройств:
    при наведении перетаскиваемого элемента строка получает ту же заливку

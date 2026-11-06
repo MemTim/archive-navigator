@@ -306,6 +306,7 @@ class Sidebar(Gtk.Box):
         self.network_order = network_order(win.conf)
         self.place_rows = []
         self.fav_rows = []
+        self.item_labels = {}
         self.device_rows = []
         self.network_rows = []
         self.editing = False
@@ -430,7 +431,10 @@ class Sidebar(Gtk.Box):
          else self.edit_btn.remove_css_class)('sz-side-edit-on')
 
     def _toggle_edit(self, *a):
-        self.editing = not self.editing
+        self._set_editing(not self.editing)
+
+    def _set_editing(self, on):
+        self.editing = bool(on)
         self.group_tools.set_visible(self.editing)
         self.add_group_btn.set_visible(self.editing)
         self.reset_group_btn.set_visible(self.editing)
@@ -703,7 +707,8 @@ class Sidebar(Gtk.Box):
         row.append(handle)
         row.append(eye)
         row.append(more)
-        self.group_rows.append({'id': group_id, 'row': row, 'eye': eye, 'group': group})
+        self.group_rows.append({'id': group_id, 'row': row, 'eye': eye,
+                                'group': group, 'label': label})
         self.inner.append(row)
 
     def _group_label_pressed(self, gesture, n_press, group):
@@ -784,19 +789,119 @@ class Sidebar(Gtk.Box):
         self._save_groups()
         self.rebuild()
 
+    def _begin_inline_rename(self, label, text, commit):
+        """Показать поле ввода вместо подписи строки боковой панели.
+
+        Enter и потеря фокуса сохраняют имя, Esc — отменяет.
+        """
+        parent = label.get_parent()
+        if parent is None:
+            return False
+        prev = getattr(self, '_inline_state', None)
+        if prev is not None:
+            self._close_inline_rename(False)
+        entry = Gtk.Entry()
+        entry.add_css_class('sz-inline-edit')
+        entry.add_css_class('sz-side-inline')
+        entry.set_hexpand(True)
+        entry.set_valign(Gtk.Align.CENTER)
+        entry.set_text(text or '')
+        parent.insert_child_after(entry, label)
+        label.set_visible(False)
+        state = {'done': False, 'entry': entry, 'label': label,
+                 'parent': parent, 'commit': commit}
+        self._inline_state = state
+        entry.connect('activate', lambda *_: self._close_inline_rename(True))
+        focus = Gtk.EventControllerFocus()
+        focus.connect('leave', lambda *_: self._close_inline_rename(True))
+        entry.add_controller(focus)
+        keys = Gtk.EventControllerKey()
+        keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+
+        def on_key(ctrl, keyval, keycode, mods):
+            if keyval == Gdk.KEY_Escape:
+                self._close_inline_rename(False)
+                return True
+            return False
+        keys.connect('key-pressed', on_key)
+        entry.add_controller(keys)
+        GLib.idle_add(self._focus_inline_rename, entry)
+        return True
+
+    def _focus_inline_rename(self, entry):
+        state = getattr(self, '_inline_state', None)
+        if state is None or state.get('entry') is not entry:
+            return False
+        entry.grab_focus()
+        entry.select_region(0, -1)
+        return False
+
+    def _close_inline_rename(self, commit):
+        state = getattr(self, '_inline_state', None)
+        if state is None or state.get('done'):
+            return
+        state['done'] = True
+        self._inline_state = None
+        value = state['entry'].get_text().strip()
+        state['entry'].set_visible(False)
+        state['label'].set_visible(True)
+        GLib.idle_add(self._finish_inline_rename, state, value, commit)
+
+    @staticmethod
+    def _finish_inline_rename(state, value, commit):
+        entry, parent = state['entry'], state['parent']
+        if entry.get_parent() is parent:
+            parent.remove(entry)
+        if commit:
+            state['commit'](value)
+        return False
+
+    def rename_favorite(self, path, name, apply):
+        """Переименовать избранное на месте в боковой панели.
+
+        Возвращает False, если строки избранного сейчас нет, — тогда
+        вызывающий может показать обычный диалог.
+        """
+        if (not self._alive or not self.get_visible()
+                or self.get_root() is None):
+            return False
+        norm = os.path.normpath(path) if path else None
+        if not norm:
+            return False
+        if self.editing:
+            row = next((r for r in self.fav_rows if r['id'] == path), None)
+            label = row.get('label') if row is not None else None
+        else:
+            label = self.item_labels.get(('fav', norm))
+        if label is None:
+            return False
+        return self._begin_inline_rename(label, name, apply)
+
+    def _apply_group_title(self, group_id, name):
+        group = self._find_group(group_id)
+        if group is None:
+            return
+        name = (name or '').strip()
+        builtin = _(GROUP_TYPE_TITLES.get(group_type(group), N_('GROUP')))
+        title = '' if not name or name == builtin else name
+        if title == str(group.get('title') or ''):
+            return
+        group['title'] = title
+        self._save_groups()
+        self.rebuild()
+
     def _rename_group(self, group):
         group_id = group['id']
         default = str(group.get('title') or '') or group_title(group)
+        row = next((r for r in self.group_rows if r['id'] == group_id), None)
+        if row is not None and row.get('label') is not None:
+            self._begin_inline_rename(
+                row['label'], default,
+                lambda name: self._apply_group_title(group_id, name))
+            return
 
         def done(name):
-            group = self._find_group(group_id)
-            if group is None:
-                return
-            name = (name or '').strip()
-            builtin = _(GROUP_TYPE_TITLES.get(group_type(group), N_('GROUP')))
-            group['title'] = '' if not name or name == builtin else name
-            self._save_groups()
-            self.rebuild()
+            self._apply_group_title(group_id, name)
         PromptDialog(self.win, _('Rename group'), _('Name:'), default,
                      _('OK'), done).present()
 
@@ -1006,7 +1111,8 @@ class Sidebar(Gtk.Box):
             eye.update_property([Gtk.AccessibleProperty.LABEL], [eye.get_tooltip_text()])
             eye.connect('clicked', lambda b, p=item_id: self._toggle_place(p))
             row.append(eye)
-        entry = {'id': item_id, 'kind': kind, 'group': group_id, 'row': row, 'eye': eye}
+        entry = {'id': item_id, 'kind': kind, 'group': group_id, 'row': row,
+                 'eye': eye, 'label': text}
         (self.place_rows if kind == 'place' else self.fav_rows).append(entry)
         self.items.append((os.path.normpath(path), row))
         self.inner.append(row)
@@ -1258,7 +1364,7 @@ class Sidebar(Gtk.Box):
         l.add_css_class('sz-section')
         self.inner.append(l)
 
-    def _item(self, icon, text, path):
+    def _item(self, icon, text, path, role='place'):
         b = Gtk.Button()
         b.add_css_class('flat')
         b.add_css_class('sz-side-item')
@@ -1270,7 +1376,9 @@ class Sidebar(Gtk.Box):
         row.append(l)
         b.set_child(row)
         b.connect('clicked', lambda x: self._go(path))
-        self.items.append((os.path.normpath(path), b))
+        norm = os.path.normpath(path)
+        self.item_labels[(role, norm)] = l
+        self.items.append((norm, b))
         self.inner.append(b)
 
     def _go(self, path):
@@ -1291,14 +1399,14 @@ class Sidebar(Gtk.Box):
             if self.editing:
                 self._place_row(place_id, icon, label, path, group_id)
             elif place_id not in self.place_hidden:
-                self._item(icon, label, path)
+                self._item(icon, label, path, 'place')
         for path, name in self._favorite_entries():
             if self._favorite_group_id(path) != group_id:
                 continue
             if self.editing:
                 self._fav_row(path, name, group_id)
             else:
-                self._item('folder-symbolic', name, path)
+                self._item('folder-symbolic', name, path, 'fav')
 
     def _placeholder(self, text):
         l = lbl(text)
@@ -2418,6 +2526,7 @@ class Sidebar(Gtk.Box):
         self.group_rows = []
         self.place_rows = []
         self.fav_rows = []
+        self.item_labels = {}
         self.device_rows = []
         self.network_rows = []
         favs_present = bool(self._favorite_entries())
