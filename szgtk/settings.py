@@ -1140,10 +1140,12 @@ class SettingsDialog(DlgBase):
         current = self.menu_extensions.get(item_id, ())
         expander = Gtk.Expander(label=_('Advanced'))
         expander.set_expanded(bool(current))
+        expander.set_margin_start(14)
         ext_box = vbox(4)
         entry = Gtk.Entry()
         entry.set_hexpand(True)
         entry.set_width_chars(24)
+        entry.set_margin_start(6)
         entry.set_placeholder_text(_('For example: .pdf, .zip'))
         entry.set_tooltip_text(_('Only these extensions (comma-separated); '
                                  'empty — all files.'))
