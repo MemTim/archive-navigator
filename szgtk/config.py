@@ -26,8 +26,10 @@ class Config(dict):
         'show_badges': True,
         # выбор файла набором букв
         'typeahead': True, 'typeahead_timeout': 1000,
-        # контекстное меню: порядок, скрытые пункты и ситуации показа
+        # контекстное меню: порядок, скрытые пункты, ситуации показа
+        # и ограничение по расширениям файлов
         'menu_layout': [], 'menu_hidden': [], 'menu_contexts': {},
+        'menu_extensions': {},
         # боковая панель: группы с флагами, порядок, скрытые пункты и ширина
         'sidebar_groups': [
             {'id': 'places', 'type': 'places', 'title': '', 'hidden': False},

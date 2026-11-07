@@ -30,6 +30,8 @@ from .panel import COLUMNS, LIST_SIZES, TILE_SIZES, Panel
 from .menu import MenuBar, MenuLayer
 from .menu_layout import (command_id,
                           contexts as menu_context_restrictions,
+                          extension_matches,
+                          extensions as menu_extension_restrictions,
                           hidden as hidden_menu_items,
                           load as load_menu_layout)
 from . import vfs
@@ -1042,11 +1044,19 @@ class MainWindow(Gtk.ApplicationWindow):
             return {kind}
         return {'file'}
 
+    def _selection_matches_extensions(self, sel, allowed):
+        # Папки расширения не имеют, поэтому учитываем только файлы.
+        # Пункт показывается, если все выбранные файлы подходят под фильтр.
+        files = [item.name for item in sel if not item.is_dir]
+        return bool(files) and all(extension_matches(name, allowed)
+                                   for name in files)
+
     def context_menu(self, panel):
         sel = panel.selected()
         fs = panel.mode == 'fs'
         active_contexts = self._active_menu_contexts(panel, sel)
         restrictions = menu_context_restrictions(self.conf)
+        ext_restrictions = menu_extension_restrictions(self.conf)
         entries, subs = {}, {}
 
         if fs:
@@ -1117,6 +1127,9 @@ class MainWindow(Gtk.ApplicationWindow):
                 continue
             allowed = restrictions.get(item_id)
             if allowed is not None and not (allowed & active_contexts):
+                continue
+            exts = ext_restrictions.get(item_id)
+            if exts is not None and not self._selection_matches_extensions(sel, exts):
                 continue
             if section != current_section:
                 if section_menu is not None and section_menu.get_n_items():

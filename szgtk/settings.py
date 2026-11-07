@@ -16,7 +16,9 @@ from .menu_layout import (ALL_CONTEXTS, CONTEXTS, CUSTOM_PREFIX, command_id,
                           default_contexts, group_selected,
                           hidden as menu_hidden, item_label,
                           load as load_menu_layout,
-                          normalize as normalize_menu_layout)
+                          normalize as normalize_menu_layout,
+                          normalize_extensions,
+                          extensions as load_menu_extensions)
 
 # ───────────────────────────── Горячие клавиши ─────────────────────────────
 # (id, действие, подпись, по умолчанию, область: global — везде, list — только в списке файлов)
@@ -821,6 +823,7 @@ class SettingsDialog(DlgBase):
         self.menu_layout = load_menu_layout(c)
         self.menu_hidden = menu_hidden(c)
         self.menu_contexts = load_menu_contexts(c)
+        self.menu_extensions = load_menu_extensions(c)
         self.menu_selected = set()
         self.menu_rows = []
         self.menu_drag_id = None
@@ -1036,7 +1039,7 @@ class SettingsDialog(DlgBase):
         more.set_tooltip_text(conditions_label)
         more.update_property([Gtk.AccessibleProperty.LABEL], [conditions_label])
         more.connect('clicked', lambda b, i=item_id: self._menu_conditions(b, i))
-        if item_id in self.menu_contexts:
+        if item_id in self.menu_contexts or item_id in self.menu_extensions:
             more.add_css_class('sz-menu-filtered')
         if item_id.startswith(CUSTOM_PREFIX):
             icon = Gtk.Image.new_from_icon_name('utilities-terminal-symbolic')
@@ -1134,7 +1137,30 @@ class SettingsDialog(DlgBase):
             cb.connect('toggled', lambda c, cid=context_id, i=item_id:
                        self._menu_context_toggle(i, cid, c.get_active()))
             box.append(cb)
-        pop.set_child(box)
+        current = self.menu_extensions.get(item_id, ())
+        expander = Gtk.Expander(label=_('Advanced'))
+        expander.set_expanded(bool(current))
+        ext_box = vbox(4)
+        entry = Gtk.Entry()
+        entry.set_hexpand(True)
+        entry.set_width_chars(24)
+        entry.set_placeholder_text(_('For example: .pdf, .zip'))
+        entry.set_tooltip_text(_('Only these extensions (comma-separated); '
+                                 'empty — all files.'))
+        entry.set_text(', '.join('.' + ext for ext in current))
+        entry.connect('changed', lambda e, i=item_id:
+                      self._menu_extension_changed(i, e))
+        ext_box.append(entry)
+        expander.set_child(ext_box)
+        box.append(expander)
+        # Содержимое бывает выше экрана: ограничиваем высоту и разрешаем прокрутку.
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_max_content_height(560)
+        scroll.set_propagate_natural_height(True)
+        scroll.set_propagate_natural_width(True)
+        scroll.set_child(box)
+        pop.set_child(scroll)
         pop.set_parent(btn)
         pop.connect('closed', lambda p: p.unparent())
         pop.popup()
@@ -1152,11 +1178,21 @@ class SettingsDialog(DlgBase):
             self.menu_contexts[item_id] = allowed
         self._menu_update_more(item_id)
 
+    def _menu_extension_changed(self, item_id, entry):
+        exts = normalize_extensions(entry.get_text())
+        if exts:
+            self.menu_extensions[item_id] = tuple(exts)
+        else:
+            self.menu_extensions.pop(item_id, None)
+        self._menu_update_more(item_id)
+
     def _menu_update_more(self, item_id):
         for r in self.menu_rows:
             if r['id'] != item_id:
                 continue
-            (r['more'].add_css_class if item_id in self.menu_contexts
+            filtered = (item_id in self.menu_contexts or
+                        item_id in self.menu_extensions)
+            (r['more'].add_css_class if filtered
              else r['more'].remove_css_class)('sz-menu-filtered')
             break
 
@@ -1246,6 +1282,7 @@ class SettingsDialog(DlgBase):
         item_id = command_id(command)
         self.menu_hidden.discard(item_id)
         self.menu_contexts.pop(item_id, None)
+        self.menu_extensions.pop(item_id, None)
         self.custom_cmd.set_text('')
         self.custom_name.set_text('')
         self._custom_sync_layout()
@@ -1258,6 +1295,7 @@ class SettingsDialog(DlgBase):
         self.menu_layout = normalize_menu_layout(self.menu_layout)
         self.menu_hidden.discard(item_id)
         self.menu_contexts.pop(item_id, None)
+        self.menu_extensions.pop(item_id, None)
         self._menu_rebuild()
 
     # ---------- Язык ----------
@@ -1391,6 +1429,9 @@ class SettingsDialog(DlgBase):
             item_id: [context_id for context_id in ALL_CONTEXTS if context_id in allowed]
             for item_id, allowed in self.menu_contexts.items()
             if set(allowed) != default_contexts(item_id)}
+        c['menu_extensions'] = {
+            item_id: list(exts) for item_id, exts in self.menu_extensions.items()
+            if exts}
         commands = {item['command'] for item in self.custom_model}
         c['open_with_custom'] = self.custom_model
         c['open_with_defaults'] = {

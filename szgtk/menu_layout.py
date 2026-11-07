@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Порядок и видимость пунктов контекстного меню."""
+import re
+
 from .i18n import N_
 from .openwith import custom_commands
 
@@ -233,3 +235,49 @@ def contexts(conf):
         if allowed != known_contexts:
             result[item_id] = allowed
     return result
+
+
+def normalize_extension(value):
+    """Привести расширение к виду без точки и звёздочки, в нижнем регистре."""
+    value = str(value).strip().lower()
+    value = value.lstrip('*').lstrip('.')
+    return value
+
+
+def normalize_extensions(value):
+    """Разобрать строку или список расширений и убрать повторы."""
+    if isinstance(value, str):
+        parts = re.split(r'[,;\s]+', value)
+    elif isinstance(value, (list, tuple, set)):
+        parts = value
+    else:
+        return []
+    result = []
+    for part in parts:
+        ext = normalize_extension(part)
+        if ext and ext not in result:
+            result.append(ext)
+    return result
+
+
+def extensions(conf):
+    """Ограничения по расширениям: id пункта -> кортеж расширений."""
+    known_items = {item_id for item_id, _label, _section in MENU_ITEMS}
+    known_items.update(item_id for item_id, _name in custom_items(conf))
+    raw = conf.get('menu_extensions') or {}
+    if not isinstance(raw, dict):
+        return {}
+    result = {}
+    for item_id, values in raw.items():
+        if item_id not in known_items:
+            continue
+        exts = normalize_extensions(values)
+        if exts:
+            result[item_id] = tuple(exts)
+    return result
+
+
+def extension_matches(name, allowed):
+    """Подходит ли имя файла хотя бы под одно из расширений."""
+    low = name.lower()
+    return any(low.endswith('.' + ext) for ext in allowed)
