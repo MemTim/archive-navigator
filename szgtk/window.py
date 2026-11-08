@@ -223,6 +223,7 @@ class MainWindow(Gtk.ApplicationWindow):
         A('rename', self.op_rename)
         A('copy', self.op_copy)
         A('move', self.op_move)
+        A('create-link', self.op_create_link)
         A('copy-selection', self.op_copy_selection)
         A('cut-selection', lambda *a: self.op_copy_selection(cut=True))
         A('paste', self.op_paste)
@@ -1102,6 +1103,10 @@ class MainWindow(Gtk.ApplicationWindow):
             entries['cut-selection'] = (_('Cut'), 'win.cut-selection')
             entries['copy'] = (_('Copy to…'), 'win.copy')
             entries['move'] = (_('Move to…'), 'win.move')
+            if fs:
+                entries['create-link'] = (
+                    _('Create link') if len(sel) == 1 else _('Create links'),
+                    'win.create-link')
             entries['delete'] = (_('Delete'), 'win.delete')
             if fs:
                 entries['checksum'] = (_('Checksum'), None)
@@ -2138,6 +2143,106 @@ class MainWindow(Gtk.ApplicationWindow):
             self.run7(title, 'a', ['-y'], [a.path, top], done, cwd=tmp, archive=a.path)
         PromptDialog(self, title, label, default, _('OK'), make).present()
 
+    # ───────────── символические ссылки ─────────────
+    @staticmethod
+    def _create_link(target, link):
+        os.symlink(os.path.abspath(target), link)
+
+    @staticmethod
+    def _unique_link_path(folder, name):
+        """Свободное имя для ссылки: «Ссылка на файл», «Ссылка на файл (2)»…"""
+        link = os.path.join(folder, name)
+        if not os.path.lexists(link):
+            return link
+        root, ext = os.path.splitext(name)
+        num = 2
+        while True:
+            link = os.path.join(folder, '%s (%d)%s' % (root, num, ext))
+            if not os.path.lexists(link):
+                return link
+            num += 1
+
+    def _create_links(self, targets, folder):
+        pairs, errors = [], []
+        for target in targets:
+            name = _('Link to {0}').format(vfs.basename(target.rstrip('/')))
+            link = self._unique_link_path(folder, name)
+            try:
+                self._create_link(target, link)
+                pairs.append((os.path.abspath(target), link))
+            except OSError as e:
+                errors.append('%s: %s' % (vfs.display(link), e))
+        return pairs, errors
+
+    def _show_links(self, pairs):
+        if not pairs:
+            return
+        p = self.active
+        folder = os.path.dirname(pairs[0][1])
+        same = not vfs.is_uri(p.path) and os.path.normpath(p.path) == folder
+        if not same:
+            p.navigate_fs(folder)
+        p.reload([vfs.basename(link) for _target, link in pairs])
+        p.focus_view()
+
+    def op_create_link(self, *a):
+        p = self.active
+        sel = p.selected()
+        if p.mode != 'fs' or not sel:
+            return
+        targets = [i.full for i in sel]
+        if any(vfs.is_uri(t) for t in targets):
+            alert(self, _('Create link'),
+                  _('Creating links is only supported for local files'))
+            return
+        if len(targets) == 1:
+            target = targets[0]
+            default = os.path.join(
+                os.path.dirname(target),
+                _('Link to {0}').format(vfs.basename(target.rstrip('/'))))
+
+            def make(text):
+                link = os.path.expanduser(text.strip())
+                if not os.path.isabs(link):
+                    link = os.path.join(os.path.dirname(target), link)
+                link = os.path.normpath(link)
+                if not os.path.isdir(os.path.dirname(link)):
+                    alert(self, _('Error'), _('Folder does not exist'))
+                    return
+                if os.path.lexists(link):
+                    alert(self, _('Error'), _('Destination already exists'))
+                    return
+                try:
+                    self._create_link(target, link)
+                except OSError as e:
+                    alert(self, _('Error'), str(e))
+                    return
+                pair = (os.path.abspath(target), link)
+                self._push_undo({'kind': 'symlink', 'pairs': [pair]})
+                self._show_links([pair])
+
+            PromptDialog(self, _('Create link'), _('Link name:'), default,
+                         _('Create'), make).present()
+            return
+
+        def make(folder):
+            folder = os.path.expanduser(folder.strip())
+            if not os.path.isabs(folder):
+                folder = os.path.join(p.path, folder)
+            folder = os.path.normpath(folder)
+            if not os.path.isdir(folder):
+                alert(self, _('Error'), _('Folder does not exist'))
+                return
+            pairs, errors = self._create_links(targets, folder)
+            if pairs:
+                self._push_undo({'kind': 'symlink', 'pairs': pairs})
+                self._show_links(pairs)
+            if errors:
+                alert(self, _('Error'), '\n'.join(errors))
+
+        PromptDialog(self, _('Create links'), _('Folder for links:'), p.path,
+                     _('Create'), make, folder_browse=True).present()
+
     # ───────────── отмена и повтор операций ─────────────
     def _update_undo_actions(self):
         for name, stack in (('undo', self.undo_stack), ('redo', self.redo_stack)):
@@ -2234,6 +2339,26 @@ class MainWindow(Gtk.ApplicationWindow):
                         raise OSError(_('Cannot create'))
             except (OSError, GLib.Error) as e:
                 fail(path, e)
+            return
+
+        if kind == 'symlink':
+            pairs = list(rec.get('pairs') or [])
+            for i, (target, link) in enumerate(pairs):
+                if job.cancelled:
+                    break
+                job.text, job.fraction = vfs.basename(link), i / max(1, len(pairs))
+                try:
+                    if undo:
+                        if os.path.lexists(link):
+                            os.unlink(link)
+                    else:
+                        if not os.path.lexists(target):
+                            raise OSError(_('File not found'))
+                        if os.path.lexists(link):
+                            raise OSError(_('Destination already exists'))
+                        self._create_link(target, link)
+                except OSError as e:
+                    fail(link, e)
             return
 
         if kind in ('copy', 'move'):
