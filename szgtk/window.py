@@ -236,6 +236,7 @@ class MainWindow(Gtk.ApplicationWindow):
         A('properties', self.op_properties)
         A('hash', self.op_hash, param='s')
         A('new-folder', self.op_new_folder)
+        A('new-document', self.op_new_document, param='s')
         A('new-file', self.op_new_file)
         A('new-window', self.op_new_window)
         A('quit', self.op_quit)
@@ -1119,6 +1120,8 @@ class MainWindow(Gtk.ApplicationWindow):
             entries['properties'] = (_('Properties'), 'win.properties')
         entries['paste'] = (_('Paste'), 'win.paste')
         entries['new-folder'] = (_('Create folder'), 'win.new-folder')
+        entries['new-document'] = (_('Create document'), None)
+        subs['new-document'] = self._new_document_menu()
         entries['select-all'] = (_('Select all'), 'win.select-all')
         entries['refresh'] = (_('Refresh'), 'win.refresh')
         if fs and not IS_ROOT and not vfs.is_uri(panel.path):
@@ -2064,6 +2067,16 @@ class MainWindow(Gtk.ApplicationWindow):
     def op_new_file(self, *a):
         self._new_item(folder=False)
 
+    def op_new_document(self, action=None, param=None):
+        template = param.get_string() if param is not None else ''
+        if template:
+            if not os.path.exists(template):
+                alert(self, _('Error'), _('File not found'))
+                return
+            self._new_item(folder=False, template=template)
+            return
+        self._new_item(folder=False, document=True)
+
     def op_new_window(self, *a):
         app = self.get_application()
         if app is not None:
@@ -2095,26 +2108,40 @@ class MainWindow(Gtk.ApplicationWindow):
                 return cand
             num += 1
 
-    def _new_item(self, folder):
+    def _new_item(self, folder, template=None, document=False):
         p = self.active
-        title = _('Create folder') if folder else _('Create file')
+        is_template = template is not None
+        template_folder = bool(template) and vfs.is_dir(template)
+        unique_folder = folder or template_folder
+        if is_template:
+            title = _('Create document')
+        else:
+            title = _('Create folder') if folder else (
+                _('Create document') if document else _('Create file'))
         label = _('Folder name:') if folder else _('File name:')
-        default = _('New folder') if folder else _('New file')
+        if is_template:
+            default = vfs.basename(template.rstrip('/'))
+        else:
+            default = (_('New folder') if folder else
+                       _('New document') if document else _('New file'))
         if p.mode == 'fs':
-            # Если «Новая папка» уже есть, предлагаем «Новая папка 2».
-            default = self._unique_new_name(p.path, default, folder)
+            # Если такое имя уже есть, предлагаем свободный вариант.
+            default = self._unique_new_name(p.path, default, unique_folder)
 
         def make(name):
             if '/' in name:
                 alert(self, _('Invalid name'))
                 return
             if p.mode == 'fs':
-                name = self._unique_new_name(p.path, name, folder)
+                name = self._unique_new_name(p.path, name, unique_folder)
                 path = vfs.join(p.path, name)
                 try:
-                    ok = vfs.mkdir(path) if folder else vfs.touch(path)
-                    if not ok:
-                        raise OSError(_('Already exists'))
+                    if template is not None:
+                        vfs.copy(template, path)
+                    else:
+                        ok = vfs.mkdir(path) if folder else vfs.touch(path)
+                        if not ok:
+                            raise OSError(_('Already exists'))
                 except (OSError, GLib.Error) as e:
                     alert(self, _('Error'), getattr(e, 'message', e))
                     return
@@ -2129,10 +2156,13 @@ class MainWindow(Gtk.ApplicationWindow):
             tmp = tempfile.mkdtemp(prefix='7zgtk-add-')
             base = os.path.join(tmp, a.sub) if a.sub else tmp
             os.makedirs(base, exist_ok=True)
-            if folder:
-                os.makedirs(os.path.join(base, name))
+            dest = os.path.join(base, name)
+            if template is not None:
+                vfs.copy(template, dest)
+            elif folder:
+                os.makedirs(dest)
             else:
-                open(os.path.join(base, name), 'w').close()
+                open(dest, 'w').close()
             top = a.sub.split('/')[0] if a.sub else name
 
             def done(res):
@@ -2143,6 +2173,49 @@ class MainWindow(Gtk.ApplicationWindow):
                     p.focus_view()
             self.run7(title, 'a', ['-y'], [a.path, top], done, cwd=tmp, archive=a.path)
         PromptDialog(self, title, label, default, _('OK'), make).present()
+
+    @staticmethod
+    def _templates_dir():
+        try:
+            path = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_TEMPLATES)
+        except Exception:
+            path = None
+        return path or os.path.join(GLib.get_home_dir(), 'Templates')
+
+    @classmethod
+    def _document_templates(cls):
+        """Файлы и папки из каталога шаблонов XDG (обычно ~/Templates)."""
+        folder = cls._templates_dir()
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            return []
+        out = []
+        for name in names:
+            if name.startswith('.'):
+                continue
+            path = os.path.join(folder, name)
+            if os.path.isfile(path) or os.path.isdir(path):
+                out.append(path)
+        return sorted(out, key=lambda p: vfs.basename(p).casefold())
+
+    def _new_document_menu(self):
+        """Подменю «Создать документ»: пустой документ и шаблоны Nautilus."""
+        menu = Gio.Menu()
+        empty = Gio.Menu()
+        it = Gio.MenuItem.new(_('Empty document'), None)
+        it.set_action_and_target_value('win.new-document', GLib.Variant.new_string(''))
+        empty.append_item(it)
+        menu.append_section(None, empty)
+        templates = Gio.Menu()
+        for path in self._document_templates():
+            it = Gio.MenuItem.new(esc_label(vfs.basename(path)), None)
+            it.set_action_and_target_value('win.new-document',
+                                           GLib.Variant.new_string(path))
+            templates.append_item(it)
+        if templates.get_n_items():
+            menu.append_section(None, templates)
+        return menu
 
     # ───────────── символические ссылки ─────────────
     @staticmethod

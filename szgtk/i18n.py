@@ -89,6 +89,8 @@ RU.update({
     'Archive is no longer available': 'Архив больше недоступен',
     'Combine files…': 'Объединить файлы…', 'Properties': 'Свойства', 'Checksum': 'Контрольная сумма',
     'Create folder': 'Создать папку', 'Create file': 'Создать файл', 'New window': 'Новое окно',
+    'Create document': 'Создать документ', 'Empty document': 'Пустой документ',
+    'New document': 'Новый документ',
     'Create link': 'Создать ссылку', 'Create links': 'Создать ссылки',
     'Link to {0}': 'Ссылка на {0}', 'Link name:': 'Имя ссылки:',
     'Folder for links:': 'Папка для ссылок:', 'Create': 'Создать',
