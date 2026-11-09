@@ -1979,7 +1979,8 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         if p.mode == 'arc':
             confirm(self, _('Are you sure you want to delete {0} item(s) from the archive?').format(len(sel)),
-                    None, _('Delete'), lambda: self.delete_in_archive(p, sel))
+                    None, _('Delete'), lambda: self.delete_in_archive(p, sel),
+                    title=_('Delete'))
             return
         paths = [i.full for i in sel]
         perm = permanent or not self.conf['use_trash'] or any(vfs.is_uri(x) for x in paths)
@@ -2015,7 +2016,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 self.reload_all()
             self.run_job(_('Deleting'), work, done)
         if self.conf['confirm_delete'] or permanent:
-            confirm(self, msg, None, _('Delete'), go)
+            confirm(self, msg, None, _('Delete'), go, title=_('Delete'))
         else:
             go()
 

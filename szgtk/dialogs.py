@@ -199,9 +199,9 @@ def choose(parent, message, buttons, cb, detail=None, default=0, cancel=0):
     d.choose(parent, None, done)
 
 
-def confirm(parent, message, detail, ok_label, on_yes):
-    choose(parent, message, [_('Cancel'), ok_label],
-           lambda i: on_yes() if i == 1 else None, detail=detail, default=1, cancel=0)
+def confirm(parent, message, detail, ok_label, on_yes, title=None):
+    ConfirmDialog(parent, title or _('Confirm'), message, ok_label, on_yes,
+                  detail=detail).present()
 
 
 def text_dialog(parent, title, text, w=680, h=420):
@@ -704,6 +704,36 @@ class PromptDialog(DlgBase):
             return
         self.close()
         self.on_ok(v)
+
+
+class ConfirmDialog(DlgBase):
+    """Подтверждение действия в стиле диалогов «Копировать»/«Переместить»."""
+
+    def __init__(self, parent, title, message, ok_text, on_ok, detail=None):
+        super().__init__(title=title, modal=True, transient_for=parent,
+                         destroy_with_parent=True)
+        self.on_ok = on_ok
+        root = vbox(8, 14)
+        self.set_child(root)
+        text = lbl(message)
+        text.set_wrap(True)
+        text.set_max_width_chars(52)
+        text.set_xalign(0.0)
+        root.append(text)
+        if detail:
+            sub = lbl(detail)
+            sub.add_css_class('dim-label')
+            sub.set_wrap(True)
+            sub.set_max_width_chars(52)
+            sub.set_xalign(0.0)
+            root.append(sub)
+        brow, ok = button_row(self, ok_text, self._ok)
+        root.append(brow)
+        ok.grab_focus()
+
+    def _ok(self):
+        self.close()
+        self.on_ok()
 
 
 class HistoryDialog(DlgBase):

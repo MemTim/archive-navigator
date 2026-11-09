@@ -38,6 +38,7 @@ set_language(_early_language())
 
 RU.update({
     'Cancel': 'Отмена', 'OK': 'OK', 'Copy': 'Копировать', 'Cut': 'Вырезать',
+    'Confirm': 'Подтверждение',
     'Paste': 'Вставить', 'Undo': 'Отменить', 'Redo': 'Повторить', 'Close': 'Закрыть',
     'Enter password': 'Введите пароль', 'Password is required for:': 'Требуется пароль для:',
     'Folders history': 'История папок', 'Store': 'Без сжатия', 'Fastest': 'Скоростной',
