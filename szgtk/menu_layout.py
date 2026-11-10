@@ -88,7 +88,7 @@ DEFAULT_CONTEXTS = {
     'checksum': _SELECTION,
     'properties': _SELECTION_OR_INSIDE,
     'new-folder': _ALL,
-    'new-document': _ALL,
+    'new-document': frozenset({'empty'}),
     'select-all': _ALL,
     'refresh': _ALL,
     'open-as-root': _SELECTION | {'empty'},
@@ -235,9 +235,7 @@ def contexts(conf):
         if item_id not in known_items or not isinstance(values, (list, tuple, set)):
             continue
         allowed = {value for value in values if value in known_contexts}
-        # Все ситуации — то же самое, что отсутствие ограничения.
-        if allowed != known_contexts:
-            result[item_id] = allowed
+        result[item_id] = allowed       # пустой набор — скрыть, полный — везде
     return result
 
 

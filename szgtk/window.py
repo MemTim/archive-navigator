@@ -30,6 +30,7 @@ from .panel import COLUMNS, LIST_SIZES, TILE_SIZES, Panel
 from .menu import MenuBar, MenuLayer
 from .menu_layout import (command_id,
                           contexts as menu_context_restrictions,
+                          default_contexts,
                           extension_matches,
                           extensions as menu_extension_restrictions,
                           hidden as hidden_menu_items,
@@ -1133,8 +1134,8 @@ class MainWindow(Gtk.ApplicationWindow):
         for item_id, section in load_menu_layout(self.conf):
             if item_id in hidden or item_id not in entries:
                 continue
-            allowed = restrictions.get(item_id)
-            if allowed is not None and not (allowed & active_contexts):
+            allowed = restrictions.get(item_id, default_contexts(item_id))
+            if not (allowed & active_contexts):
                 continue
             exts = ext_restrictions.get(item_id)
             if exts is not None and not self._selection_matches_extensions(sel, exts):
