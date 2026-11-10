@@ -179,6 +179,8 @@ class Panel(Gtk.Box):
         self._scroll_until, self._scroll_busy = 0.0, False
         self.thumbs, self._thumb_pending, self._thumb_gen, self._thumb_timer = {}, set(), 0, 0
         self._ta_buf, self._ta_ok, self._ta_src = '', True, 0     # выбор набором букв
+        self._dir_monitor, self._dir_reload_src = None, 0
+        self._dir_reload_pending = False
         self.add_css_class('sz-panel')
 
         self._build_header()
@@ -1164,6 +1166,70 @@ class Panel(Gtk.Box):
                     shutil.rmtree(a.tmp, ignore_errors=True)
             self.arc = None
 
+    # ---------- автоматическое обновление папки ----------
+    def _unwatch_dir(self):
+        mon, self._dir_monitor = self._dir_monitor, None
+        if mon is not None:
+            try:
+                mon.cancel()
+            except Exception:
+                pass
+        if self._dir_reload_src:
+            GLib.source_remove(self._dir_reload_src)
+            self._dir_reload_src = 0
+        self._dir_reload_pending = False
+
+    def _watch_dir(self):
+        """Следить за текущей папкой: файлы, появившиеся или удалённые снаружи."""
+        self._unwatch_dir()
+        if self.mode != 'fs' or not self.path:
+            return
+        try:
+            mon = vfs.gfile(self.path).monitor_directory(
+                Gio.FileMonitorFlags.WATCH_MOVES, None)
+        except Exception:
+            return
+        if mon is None:
+            return
+        self._dir_monitor = mon
+        mon.connect('changed', self._on_dir_changed)
+
+    def _on_dir_changed(self, monitor, file, other, event):
+        if monitor is not self._dir_monitor or self.mode != 'fs':
+            return
+        watched = (Gio.FileMonitorEvent.CREATED,
+                   Gio.FileMonitorEvent.DELETED,
+                   Gio.FileMonitorEvent.MOVED,
+                   Gio.FileMonitorEvent.MOVED_IN,
+                   Gio.FileMonitorEvent.MOVED_OUT,
+                   Gio.FileMonitorEvent.RENAMED,
+                   Gio.FileMonitorEvent.CHANGES_DONE_HINT)
+        if event not in watched:
+            return
+        # Не перестраиваем список посреди переименования на месте.
+        if self._renaming or getattr(self, '_rename_state', None) is not None:
+            self._dir_reload_pending = True
+            return
+        if not self._dir_reload_src:
+            self._dir_reload_src = GLib.timeout_add(300, self._dir_reload)
+
+    def _dir_reload(self):
+        self._dir_reload_src = 0
+        if self.mode != 'fs':
+            return False
+        if self._renaming or getattr(self, '_rename_state', None) is not None:
+            self._dir_reload_pending = True
+            return False
+        self.reload()
+        return False
+
+    def _flush_dir_reload(self):
+        if not self._dir_reload_pending:
+            return
+        self._dir_reload_pending = False
+        if not self._dir_reload_src and self.mode == 'fs':
+            self._dir_reload_src = GLib.timeout_add(300, self._dir_reload)
+
     def navigate_fs(self, path, push=True, select=None):
         if push:
             self._capture_view_state()
@@ -1185,6 +1251,7 @@ class Panel(Gtk.Box):
         self.entry.set_text(path)
         self._set_cols()
         self.fill(self._fs_rows(), [select] if select else None)
+        self._watch_dir()
         if push:
             self._push(('fs', path))
         self.win.conf['last_dir'] = path
@@ -1239,6 +1306,7 @@ class Panel(Gtk.Box):
             self.entry.set_text(uri)
             self._set_cols()
             self.fill(self._fs_rows(), [select] if select else None)
+            self._watch_dir()
             if push:
                 self._push(('fs', uri))
 
@@ -1268,6 +1336,7 @@ class Panel(Gtk.Box):
             self.entry.set_text(uri)
             self._set_cols()
             self.fill(self._fs_rows(), [select] if select else None)
+            self._watch_dir()
             if push:
                 self._push(('fs', uri))
 
@@ -1325,6 +1394,7 @@ class Panel(Gtk.Box):
                 s = s.rpartition('/')[0]
             st.sub = s
             self.mode, self.arc = 'arc', st
+            self._unwatch_dir()
             self._set_cols()
             self.show_arc()
             if push and parent_state is None:
@@ -1773,6 +1843,7 @@ class Panel(Gtk.Box):
         self._renaming = False
         self._rename_path = None
         self._rename_it = None
+        self._flush_dir_reload()
         if commit and it is not None:
             GLib.idle_add(self._finish_rename, it, text)
 
@@ -1787,6 +1858,7 @@ class Panel(Gtk.Box):
         if getattr(self, '_tile_edit', None) is not None:
             self._tile_edit_close(False)
         self._renaming = False
+        self._flush_dir_reload()
 
     @staticmethod
     def _base_len(name):
@@ -1920,6 +1992,7 @@ class Panel(Gtk.Box):
         self._tile_edit_parts = None
         self._tile_edit_state = None
         self._renaming = False
+        self._flush_dir_reload()
 
         def fin():
             if tv.get_parent() is self.tiles_over:
