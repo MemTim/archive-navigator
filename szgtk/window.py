@@ -821,6 +821,14 @@ class MainWindow(Gtk.ApplicationWindow):
         self.st_sel.add_css_class('sz-muted')
         self.st_disk = lbl('')
         self.st_disk.add_css_class('sz-muted')
+        # Длинные имена не должны увеличивать минимальную ширину окна:
+        # в статусбаре они обрезаются по доступному месту.
+        for w in (self.st_main, self.st_sel, self.st_disk):
+            w.set_ellipsize(Pango.EllipsizeMode.END)
+            w.set_single_line_mode(True)
+        # Верхняя граница «естественной» ширины: даже очень длинное имя
+        # не заставит окно раздвинуться при перемещении между экранами.
+        self.st_main.set_max_width_chars(60)
         self.st_progress = Gtk.ProgressBar()
         self.st_progress.add_css_class('sz-st-progress')
         self.st_progress.set_show_text(False)
@@ -830,6 +838,8 @@ class MainWindow(Gtk.ApplicationWindow):
         sp.set_hexpand(True)
         self.st_hint = lbl('')
         self.st_hint.add_css_class('sz-muted')
+        self.st_hint.set_ellipsize(Pango.EllipsizeMode.END)
+        self.st_hint.set_single_line_mode(True)
         self.zoom_scale = Gtk.Scale.new_with_range(H, 0, 8, 1)
         self.zoom_scale.set_draw_value(False)
         self.zoom_scale.set_round_digits(0)

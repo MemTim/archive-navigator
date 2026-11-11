@@ -405,6 +405,10 @@ class Panel(Gtk.Box):
         sp = Gtk.Box()
         sp.set_hexpand(True)
         self.foot_r = lbl('')
+        for w in (self.foot_l, self.foot_r):
+            w.set_ellipsize(Pango.EllipsizeMode.END)
+            w.set_single_line_mode(True)
+            w.set_max_width_chars(60)
         for w in (self.foot_l, sp, self.foot_r):
             f.append(w)
         self.foot = f
