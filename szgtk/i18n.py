@@ -96,6 +96,7 @@ RU.update({
     'Folder for links:': 'Папка для ссылок:', 'Create': 'Создать',
     'Folder does not exist': 'Папка не существует',
     'Creating links is only supported for local files': 'Создание ссылок поддерживается только для локальных файлов',
+    'Links to files extracted from archives are not supported': 'Ссылки на файлы, извлечённые из архива, не поддерживаются',
     'Exit': 'Выход', 'File': 'Файл',
     'Select all': 'Выделить всё', 'Deselect all': 'Снять выделение', 'Invert selection': 'Обратить выделение',
     'Select…': 'Выделить…', 'Deselect…': 'Снять выделение…', 'List (names only)': 'Список (только имена)',

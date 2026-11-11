@@ -2165,12 +2165,31 @@ class Panel(Gtk.Box):
         self.unselect_all()
         self.win.open_context_menu(self, self.grid, x, y)
 
+    def _list_select_for_drag(self, x, y):
+        """Выделить строку, с которой начинается перетаскивание.
+
+        Ctrl+щелчок по уже выделенной строке снимает выделение ещё до начала
+        перетаскивания — возвращаем строку в набор, иначе тащить нечего.
+        """
+        try:
+            bx, by = self.tree.convert_widget_to_bin_window_coords(int(x), int(y))
+            hit = self.tree.get_path_at_pos(bx, by)
+        except Exception:
+            return
+        if not hit:
+            return
+        path, sel = hit[0], self.tree.get_selection()
+        if not sel.path_is_selected(path):
+            sel.select_path(path)
+
     def _on_drag_prepare(self, src, x, y):
         if self.view_mode == 'tiles':
             parts = self._tile_at(x, y)
             if parts is None or parts.item is None:      # пустое место — это рамка выделения
                 return None
             self._tile_select_for_drag(parts, src.get_current_event_state())
+        else:
+            self._list_select_for_drag(x, y)
         items = self.selected()
         if not items or any(vfs.is_uri(i.full) for i in items):
             return None
@@ -2190,28 +2209,64 @@ class Panel(Gtk.Box):
     def _on_drop_leave(self, target):
         self.drop_ring.set_visible(False)
 
+    def _drop_folder(self, x, y):
+        """Папка под курсором (или текущая папка панели, если курсор на пустом месте)."""
+        if self.mode != 'fs':
+            return None
+        if self.view_mode == 'tiles':
+            parts = self._tile_at(x, y)
+            item = parts.item if parts is not None else None
+            if item is not None and item.is_dir:
+                return item.full
+            return self.path
+        try:
+            bx, by = self.tree.convert_widget_to_bin_window_coords(int(x), int(y))
+            hit = self.tree.get_path_at_pos(bx, by)
+        except Exception:
+            return self.path
+        if hit:
+            it = self.sorted.get_iter(hit[0])
+            if self.sorted.get_value(it, C_DIR):
+                return self.sorted.get_value(it, C_FULL)
+        return self.path
+
     def _on_drop(self, target, value, x, y):
         self.drop_ring.set_visible(False)
         paths = [f.get_path() for f in value.get_files() if f.get_path()]
         if not paths:
             return False
+        if self.mode != 'fs':
+            self.win.drop_files(self, paths, False)
+            return True
+        try:
+            mods = target.get_current_event_state()
+        except Exception:
+            mods = 0
+        # Событие drop часто приходит без модификаторов, поэтому состояние
+        # клавиш надёжнее спросить у самого устройства ввода.
+        try:
+            seat = Gdk.Display.get_default().get_default_seat()
+            device = seat.get_keyboard() or seat.get_pointer()
+            mods = device.get_modifier_state()
+        except Exception:
+            pass
+        ctrl = bool(mods & Gdk.ModifierType.CONTROL_MASK)
+        shift = bool(mods & Gdk.ModifierType.SHIFT_MASK)
+        alt = bool(mods & Gdk.ModifierType.ALT_MASK)
+        dest = self._drop_folder(x, y) or self.path
+        if alt:
+            # Как в Windows: Alt при перетаскивании создаёт ссылку в папке.
+            self.win.link_files(self, paths, dest)
+            return True
         move = False
-        if self.mode == 'fs':
-            try:
-                mods = target.get_current_event_state()
-            except Exception:
-                mods = 0
-            ctrl = bool(mods & Gdk.ModifierType.CONTROL_MASK)
-            shift = bool(mods & Gdk.ModifierType.SHIFT_MASK)
-            if shift:
-                move = True
-            elif not ctrl:
-                # Как в файловых менеджерах: в пределах одного устройства
-                # перетаскивание перемещает, между устройствами — копирует.
-                try:
-                    dev = os.stat(self.path).st_dev
-                    move = all(os.stat(p).st_dev == dev for p in paths)
-                except OSError:
-                    move = False
-        self.win.drop_files(self, paths, move)
+        try:
+            dev = os.stat(dest).st_dev
+            move = all(os.stat(p).st_dev == dev for p in paths)
+        except OSError:
+            move = False
+        if shift:
+            move = True
+        elif ctrl:
+            move = False
+        self.win.drop_files(self, paths, move, dest=dest)
         return True

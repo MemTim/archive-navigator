@@ -1611,14 +1611,85 @@ class MainWindow(Gtk.ApplicationWindow):
             return None
         return [os.path.join(tmp, i.full) for i in items if os.path.exists(os.path.join(tmp, i.full))]
 
-    def drop_files(self, panel, paths, move=False):
+    @staticmethod
+    def _path_within(parent, child):
+        """Тот же путь или вложенный в него (parent — папка, child — объект)."""
+        if vfs.is_uri(parent) or vfs.is_uri(child):
+            p = vfs.norm(parent).rstrip('/')
+            c = vfs.norm(child).rstrip('/')
+            return c == p or c.startswith(p + '/')
+        try:
+            p, c = os.path.realpath(parent), os.path.realpath(child)
+        except (OSError, ValueError):
+            p, c = os.path.normpath(parent), os.path.normpath(child)
+        return c == p or c.startswith(p + os.sep)
+
+    def drop_files(self, panel, paths, move=False, dest=None):
+        """Перетащить объекты в папку dest (по умолчанию — текущую папку панели)."""
         self.set_active(panel)
         if panel.mode == 'arc':
             self.add_into_archive(panel, paths)
             return
-        if all(os.path.dirname(p.rstrip('/')) == panel.path for p in paths):
+        dest = dest or panel.path
+        if not vfs.is_uri(dest):
+            dest = os.path.abspath(os.path.expanduser(dest))
+        keep = []
+        for p in paths:
+            src = p if vfs.is_uri(p) else (p.rstrip('/') or p)
+            parent = vfs.dirname(src)
+            if parent is not None and self._same_item(parent, dest):
+                continue          # объект уже лежит в этой папке
+            if self._path_within(src, dest):
+                continue          # нельзя положить папку в саму себя
+            keep.append(p)
+        if not keep:
             return
-        self.fs_transfer(paths, panel.path, move)
+        self.fs_transfer(keep, dest, move)
+
+    def link_files(self, panel, paths, dest):
+        """Alt+перетаскивание: создать в папке ссылки на объекты, как ярлыки в Windows."""
+        self.set_active(panel)
+        dest = dest or panel.path
+        if not dest:
+            return
+        if vfs.is_uri(dest) or any(vfs.is_uri(p) for p in paths):
+            alert(self, _('Create link'),
+                  _('Creating links is only supported for local files'))
+            return
+        dest = os.path.abspath(os.path.expanduser(dest))
+        if not os.path.isdir(dest):
+            alert(self, _('Error'), _('Folder does not exist'))
+            return
+        pairs, errors = [], []
+        temps = [os.path.realpath(t) for t in self.temp_dirs]
+        for p in paths:
+            src = p.rstrip('/') or p
+            real = os.path.realpath(src)
+            if any(real == t or real.startswith(t + os.sep) for t in temps):
+                errors.append('%s: %s' % (
+                    vfs.display(src),
+                    _('Links to files extracted from archives are not supported')))
+                continue
+            if os.path.isdir(src) and self._path_within(src, dest):
+                continue          # ссылка на папку внутри неё самой зациклится
+            name = _('Link to {0}').format(vfs.basename(src))
+            link = self._unique_link_path(dest, name)
+            try:
+                self._create_link(src, link)
+                pairs.append((os.path.abspath(src), link))
+            except OSError as e:
+                errors.append('%s: %s' % (vfs.display(link), e))
+        if pairs:
+            self._push_undo({'kind': 'symlink', 'pairs': pairs})
+            same = (not vfs.is_uri(panel.path) and
+                    os.path.normpath(panel.path) == os.path.normpath(dest))
+            if same:
+                panel.reload([vfs.basename(link) for _t, link in pairs])
+                panel.focus_view()
+            else:
+                self.reload_all()
+        if errors:
+            alert(self, _('Error'), '\n'.join(errors))
 
     # ───────────── операции: открыть / просмотр ─────────────
     def op_open_archive_dialog(self, *a):
