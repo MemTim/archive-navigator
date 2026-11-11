@@ -351,6 +351,9 @@ class Panel(Gtk.Box):
         self.sw_list = sw1
         self.list_over = Gtk.Overlay()
         self.list_over.set_child(sw1)
+        self.list_hi = self._make_drop_hi()
+        self.list_over.add_overlay(self.list_hi)
+        self.list_over.set_measure_overlay(self.list_hi, False)
         self.sw_tiles = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
         self.tiles_over = Gtk.Overlay()
         # GridView сам реализует Scrollable: он должен быть непосредственным
@@ -358,6 +361,9 @@ class Panel(Gtk.Box):
         # виджеты для всех строк сразу (и прокрутка живёт в другом adjustment).
         self.sw_tiles.set_child(self.grid)
         self.tiles_over.set_child(self.sw_tiles)
+        self.tiles_hi = self._make_drop_hi()
+        self.tiles_over.add_overlay(self.tiles_hi)
+        self.tiles_over.set_measure_overlay(self.tiles_hi, False)
         self.stack.add_named(self.list_over, 'list')
         self.stack.add_named(self.tiles_over, 'tiles')
         self.stack.set_visible_child_name(self.view_mode)
@@ -375,6 +381,17 @@ class Panel(Gtk.Box):
         self.stack_over.add_overlay(self.drop_ring)
         self.stack_over.set_measure_overlay(self.drop_ring, False)
         self.append(self.stack_over)
+
+    def _make_drop_hi(self):
+        """Подсветка папки, на которую сейчас будет выполнен сброс."""
+        b = Gtk.Box()
+        b.add_css_class('sz-drop-folder')
+        b.set_can_target(False)
+        b.set_focusable(False)
+        b.set_halign(Gtk.Align.START)
+        b.set_valign(Gtk.Align.START)
+        b.set_visible(False)
+        return b
 
     def _build_footer(self):
         if self.design != 'dual':
@@ -408,11 +425,14 @@ class Panel(Gtk.Box):
         sc.connect('scroll', self._on_scroll)
         w.add_controller(sc)
         src = Gtk.DragSource()
-        src.set_actions(Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
+        src.set_actions(Gdk.DragAction.COPY | Gdk.DragAction.MOVE | Gdk.DragAction.LINK)
         src.connect('prepare', self._on_drag_prepare)
+        src.connect('drag-end', self._on_drag_end)
         w.add_controller(src)
-        dt = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
+        dt = Gtk.DropTarget.new(Gdk.FileList,
+                                Gdk.DragAction.COPY | Gdk.DragAction.MOVE | Gdk.DragAction.LINK)
         dt.connect('enter', self._on_drop_enter)
+        dt.connect('motion', self._on_drop_motion)
         dt.connect('leave', self._on_drop_leave)
         dt.connect('drop', self._on_drop)
         w.add_controller(dt)
@@ -2196,18 +2216,156 @@ class Panel(Gtk.Box):
         paths = self.win.drag_paths(self, items)
         if not paths:
             return None
+        self.win._drag_paths = paths
         fl = Gdk.FileList.new_from_list([Gio.File.new_for_path(p) for p in paths])
         v = GObject.Value()
         v.init(Gdk.FileList)
         v.set_boxed(fl)
         return Gdk.ContentProvider.new_for_value(v)
 
+    def _on_drag_end(self, src, drag, delete):
+        self.win._drag_paths = None
+        self._end_drop_feedback()
+
     def _on_drop_enter(self, target, x, y):
         self.drop_ring.set_visible(True)
-        return target.get_actions()
+        self._drop_hint_text = None
+        return self._show_drop_feedback(target, x, y)
+
+    def _on_drop_motion(self, target, x, y):
+        return self._show_drop_feedback(target, x, y)
 
     def _on_drop_leave(self, target):
+        self._drop_hint_text = None
+        self._end_drop_feedback()
+
+    def _drop_mods(self, target):
+        """Текущие модификаторы; событие drop часто приходит без них."""
+        try:
+            mods = target.get_current_event_state()
+        except Exception:
+            mods = 0
+        try:
+            seat = Gdk.Display.get_default().get_default_seat()
+            device = seat.get_keyboard() or seat.get_pointer()
+            mods = device.get_modifier_state()
+        except Exception:
+            pass
+        return mods
+
+    def _drop_action(self, target, dest):
+        """Действие под текущие клавиши — от него зависит курсор Drag-and-Drop."""
+        mods = self._drop_mods(target)
+        if mods & Gdk.ModifierType.ALT_MASK:
+            want = Gdk.DragAction.LINK
+        elif mods & Gdk.ModifierType.CONTROL_MASK:
+            want = Gdk.DragAction.COPY
+        elif mods & Gdk.ModifierType.SHIFT_MASK:
+            want = Gdk.DragAction.MOVE
+        else:
+            want = Gdk.DragAction.MOVE
+            paths = getattr(self.win, '_drag_paths', None)
+            if paths:
+                try:
+                    dev = os.stat(dest).st_dev
+                    if not all(os.stat(p).st_dev == dev for p in paths):
+                        want = Gdk.DragAction.COPY
+                except OSError:
+                    pass
+        # Источник может не поддерживать предложенное действие (например,
+        # другое приложение без LINK) — тогда показываем совместимый курсор.
+        avail = 0
+        try:
+            drop = target.get_current_drop()
+            if drop is not None:
+                avail = int(drop.get_actions())
+        except Exception:
+            avail = 0
+        if not avail or (want & avail):
+            return want
+        for fallback in (Gdk.DragAction.MOVE, Gdk.DragAction.COPY):
+            if fallback & avail:
+                return fallback
+        return target.get_actions()
+
+    def _drop_rect(self, x, y):
+        """Прямоугольник папки под курсором в координатах списка или сетки."""
+        if self.mode != 'fs':
+            return None
+        if self.view_mode == 'tiles':
+            parts = self._tile_at(x, y)
+            item = parts.item if parts is not None else None
+            if item is None or not item.is_dir:
+                return None
+            box = parts.box
+            res = box.translate_coordinates(self.grid, 0, 0)
+            if res is None:
+                return None
+            px, py = res[-2], res[-1]
+            return px, py, box.get_width(), box.get_height()
+        try:
+            bx, by = self.tree.convert_widget_to_bin_window_coords(int(x), int(y))
+            hit = self.tree.get_path_at_pos(bx, by)
+        except Exception:
+            return None
+        if not hit:
+            return None
+        it = self.sorted.get_iter(hit[0])
+        if not self.sorted.get_value(it, C_DIR):
+            return None
+        area = self.tree.get_background_area(hit[0], self.tree.get_column(0))
+        wx, wy = self.tree.convert_bin_window_to_widget_coords(area.x, area.y)
+        return wx, wy, self.tree.get_width(), area.height
+
+    def _hide_drop_hi(self):
+        for hi in (self.list_hi, self.tiles_hi):
+            hi.set_visible(False)
+
+    def _end_drop_feedback(self):
         self.drop_ring.set_visible(False)
+        self._hide_drop_hi()
+        self._clear_drop_hint()
+
+    def _clear_drop_hint(self):
+        self._drop_hint_text = None
+        if getattr(self, '_drop_hint_on', False):
+            self._drop_hint_on = False
+            self.update_status()
+
+    def _show_drop_feedback(self, target, x, y):
+        """Подсветить папку-получателя и подсказать действие в статусе."""
+        if self.mode != 'fs':
+            self._hide_drop_hi()
+            return Gdk.DragAction.COPY
+        dest = self._drop_folder(x, y) or self.path
+        action = self._drop_action(target, dest)
+        self._hide_drop_hi()
+        rect = self._drop_rect(x, y)
+        if rect is not None:
+            hi = self.list_hi if self.view_mode == 'list' else self.tiles_hi
+            view = self.tree if self.view_mode == 'list' else self.grid
+            try:
+                res = view.translate_coordinates(hi.get_parent(), rect[0], rect[1])
+            except Exception:
+                res = None
+            if res is not None:
+                ox, oy = res[-2], res[-1]
+                hi.set_margin_start(max(0, int(ox)))
+                hi.set_margin_top(max(0, int(oy)))
+                hi.set_size_request(max(0, int(rect[2])), max(0, int(rect[3])))
+                hi.set_visible(True)
+        name = vfs.basename(dest.rstrip('/') or dest)
+        if action == Gdk.DragAction.LINK:
+            text = _('Create link in "{0}"').format(name)
+        elif action == Gdk.DragAction.COPY:
+            text = _('Copy to "{0}"').format(name)
+        else:
+            text = _('Move to "{0}"').format(name)
+        if getattr(self, '_drop_hint_text', None) != text:
+            self._drop_hint_text = text
+            self._drop_hint_on = True
+            self.set_message(text)
+        return action
 
     def _drop_folder(self, x, y):
         """Папка под курсором (или текущая папка панели, если курсор на пустом месте)."""
@@ -2231,25 +2389,14 @@ class Panel(Gtk.Box):
         return self.path
 
     def _on_drop(self, target, value, x, y):
-        self.drop_ring.set_visible(False)
+        self._end_drop_feedback()
         paths = [f.get_path() for f in value.get_files() if f.get_path()]
         if not paths:
             return False
         if self.mode != 'fs':
             self.win.drop_files(self, paths, False)
             return True
-        try:
-            mods = target.get_current_event_state()
-        except Exception:
-            mods = 0
-        # Событие drop часто приходит без модификаторов, поэтому состояние
-        # клавиш надёжнее спросить у самого устройства ввода.
-        try:
-            seat = Gdk.Display.get_default().get_default_seat()
-            device = seat.get_keyboard() or seat.get_pointer()
-            mods = device.get_modifier_state()
-        except Exception:
-            pass
+        mods = self._drop_mods(target)
         ctrl = bool(mods & Gdk.ModifierType.CONTROL_MASK)
         shift = bool(mods & Gdk.ModifierType.SHIFT_MASK)
         alt = bool(mods & Gdk.ModifierType.ALT_MASK)

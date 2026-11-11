@@ -74,6 +74,7 @@ class MainWindow(Gtk.ApplicationWindow):
         super().__init__(application=app, title=APP_NAME + (' — root' if IS_ROOT else ''))
         self.sz, self.conf = sz, conf
         self.passwords, self.temp_dirs, self.closing, self.rebuilding = {}, [], False, False
+        self._drag_paths = None
         self._active_archives = set()
         self.clipboard_data, self._clipboard_own = None, False
         self._clip_serial = 0
