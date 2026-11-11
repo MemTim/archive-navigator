@@ -351,7 +351,7 @@ class Panel(Gtk.Box):
         self.sw_list = sw1
         self.list_over = Gtk.Overlay()
         self.list_over.set_child(sw1)
-        self.list_hi = self._make_drop_hi()
+        self.list_hi = self._make_drop_hi('list')
         self.list_over.add_overlay(self.list_hi)
         self.list_over.set_measure_overlay(self.list_hi, False)
         self.sw_tiles = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
@@ -361,7 +361,7 @@ class Panel(Gtk.Box):
         # виджеты для всех строк сразу (и прокрутка живёт в другом adjustment).
         self.sw_tiles.set_child(self.grid)
         self.tiles_over.set_child(self.sw_tiles)
-        self.tiles_hi = self._make_drop_hi()
+        self.tiles_hi = self._make_drop_hi('tiles')
         self.tiles_over.add_overlay(self.tiles_hi)
         self.tiles_over.set_measure_overlay(self.tiles_hi, False)
         self.stack.add_named(self.list_over, 'list')
@@ -382,10 +382,12 @@ class Panel(Gtk.Box):
         self.stack_over.set_measure_overlay(self.drop_ring, False)
         self.append(self.stack_over)
 
-    def _make_drop_hi(self):
+    def _make_drop_hi(self, kind):
         """Подсветка папки, на которую сейчас будет выполнен сброс."""
         b = Gtk.Box()
         b.add_css_class('sz-drop-folder')
+        # В списке выделение строки прямоугольное, в плитках — со скруглением.
+        b.add_css_class('sz-drop-list' if kind == 'list' else 'sz-drop-tiles')
         b.set_can_target(False)
         b.set_focusable(False)
         b.set_halign(Gtk.Align.START)
@@ -2297,12 +2299,20 @@ class Panel(Gtk.Box):
             item = parts.item if parts is not None else None
             if item is None or not item.is_dir:
                 return None
-            box = parts.box
-            res = box.translate_coordinates(self.grid, 0, 0)
+            # Подсветка должна совпадать с рамкой выделения плитки: она
+            # рисуется вокруг GtkListItemWidget, а не вокруг содержимого с
+            # его отступами.
+            cell = parts.box
+            parent = cell.get_parent()
+            while parent is not None and parent is not self.grid:
+                cell, parent = parent, parent.get_parent()
+            if parent is not self.grid:
+                return None
+            res = cell.translate_coordinates(self.grid, 0, 0)
             if res is None:
                 return None
             px, py = res[-2], res[-1]
-            return px, py, box.get_width(), box.get_height()
+            return px, py, cell.get_width(), cell.get_height()
         try:
             bx, by = self.tree.convert_widget_to_bin_window_coords(int(x), int(y))
             hit = self.tree.get_path_at_pos(bx, by)
@@ -2315,7 +2325,14 @@ class Panel(Gtk.Box):
             return None
         area = self.tree.get_background_area(hit[0], self.tree.get_column(0))
         wx, wy = self.tree.convert_bin_window_to_widget_coords(area.x, area.y)
-        return wx, wy, self.tree.get_width(), area.height
+        # Не залезаем на заголовок, если строка видна лишь частично.
+        top = self.tree.convert_bin_window_to_widget_coords(0, 0)[1]
+        bottom = self.tree.get_height()
+        y2 = min(wy + area.height, bottom)
+        wy = max(wy, top)
+        # Выделение в списке занимает только колонки, без пустого места справа.
+        width = sum(c.get_width() for c in self.cols.values() if c.get_visible())
+        return wx, wy, width or self.tree.get_width(), max(0, y2 - wy)
 
     def _hide_drop_hi(self):
         for hi in (self.list_hi, self.tiles_hi):

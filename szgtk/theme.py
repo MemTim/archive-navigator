@@ -326,7 +326,9 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight .sz-drop-ring
   { border: 2px solid alpha($accent, 0.65); background-color: alpha($accent, 0.05); border-radius: 8px; }
 .sz-midnight .sz-drop-folder
-  { border: 2px solid alpha($accent, 0.9); background-color: alpha($accent, 0.20); border-radius: 7px; }
+  { background-color: alpha($accent, 0.45); border-radius: 8px; }
+.sz-midnight .sz-drop-list
+  { border-radius: 0; }
 .sz-midnight iconview, .sz-midnight iconview.view { background-color: $bg; color: $text; }
 .sz-midnight iconview:selected, .sz-midnight iconview.view:selected, .sz-midnight iconview .cell:selected
   { background-color: alpha($accent, 0.30); color: $text; border-radius: 8px; }
@@ -573,7 +575,9 @@ LIGHT_EXTRA_CSS = """
 .sz-light .sz-drop-ring, .sz-system .sz-drop-ring
   { border: 2px solid alpha(currentColor, 0.5); background-color: alpha(currentColor, 0.04); border-radius: 8px; }
 .sz-light .sz-drop-folder, .sz-system .sz-drop-folder
-  { border: 2px solid alpha(currentColor, 0.65); background-color: alpha(currentColor, 0.10); border-radius: 7px; }
+  { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 8px; }
+.sz-light .sz-drop-list, .sz-system .sz-drop-list
+  { border-radius: 0; }
 .sz-light notebook > header, .sz-system notebook > header,
 .sz-light notebook > header > tabs, .sz-system notebook > header > tabs
   { background: @theme_bg_color; border: none; box-shadow: none; }
