@@ -322,6 +322,7 @@ class Panel(Gtk.Box):
         self.tile_sel.connect('selection-changed', lambda m, p, n: self.update_status())
         self.tile_sel.connect('selection-changed', self._tile_anchor_changed)
         self._bound, self._tiles_dirty = {}, True
+        self._drop_cell = None
         # Последний элемент, с которого начинается Shift-выделение. GridView
         # после пересборки модели сбрасывает свой внутренний якорь на первую
         # плитку, поэтому якорем управляем сами.
@@ -351,7 +352,7 @@ class Panel(Gtk.Box):
         self.sw_list = sw1
         self.list_over = Gtk.Overlay()
         self.list_over.set_child(sw1)
-        self.list_hi = self._make_drop_hi('list')
+        self.list_hi = self._make_drop_hi()
         self.list_over.add_overlay(self.list_hi)
         self.list_over.set_measure_overlay(self.list_hi, False)
         self.sw_tiles = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
@@ -361,9 +362,6 @@ class Panel(Gtk.Box):
         # виджеты для всех строк сразу (и прокрутка живёт в другом adjustment).
         self.sw_tiles.set_child(self.grid)
         self.tiles_over.set_child(self.sw_tiles)
-        self.tiles_hi = self._make_drop_hi('tiles')
-        self.tiles_over.add_overlay(self.tiles_hi)
-        self.tiles_over.set_measure_overlay(self.tiles_hi, False)
         self.stack.add_named(self.list_over, 'list')
         self.stack.add_named(self.tiles_over, 'tiles')
         self.stack.set_visible_child_name(self.view_mode)
@@ -382,12 +380,12 @@ class Panel(Gtk.Box):
         self.stack_over.set_measure_overlay(self.drop_ring, False)
         self.append(self.stack_over)
 
-    def _make_drop_hi(self, kind):
-        """Подсветка папки, на которую сейчас будет выполнен сброс."""
+    def _make_drop_hi(self):
+        """Подсветка строки списка, на которую сейчас будет выполнен сброс."""
         b = Gtk.Box()
         b.add_css_class('sz-drop-folder')
-        # В списке выделение строки прямоугольное, в плитках — со скруглением.
-        b.add_css_class('sz-drop-list' if kind == 'list' else 'sz-drop-tiles')
+        # В списке выделение строки прямоугольное.
+        b.add_css_class('sz-drop-list')
         b.set_can_target(False)
         b.set_focusable(False)
         b.set_halign(Gtk.Align.START)
@@ -2293,6 +2291,14 @@ class Panel(Gtk.Box):
                 return fallback
         return target.get_actions()
 
+    def _tile_cell(self, parts):
+        """Виджет ячейки GridView для плитки (рамка выделения рисуется на нём)."""
+        cell = parts.box if parts is not None else None
+        parent = cell.get_parent() if cell is not None else None
+        while parent is not None and parent is not self.grid:
+            cell, parent = parent, parent.get_parent()
+        return cell if parent is self.grid else None
+
     def _drop_rect(self, x, y):
         """Прямоугольник папки под курсором в координатах списка или сетки."""
         if self.mode != 'fs':
@@ -2303,13 +2309,10 @@ class Panel(Gtk.Box):
             if item is None or not item.is_dir:
                 return None
             # Подсветка должна совпадать с рамкой выделения плитки: она
-            # рисуется вокруг GtkListItemWidget, а не вокруг содержимого с
+            # рисуется вокруг виджета ячейки, а не вокруг содержимого с
             # его отступами.
-            cell = parts.box
-            parent = cell.get_parent()
-            while parent is not None and parent is not self.grid:
-                cell, parent = parent, parent.get_parent()
-            if parent is not self.grid:
+            cell = self._tile_cell(parts)
+            if cell is None:
                 return None
             res = cell.translate_coordinates(self.grid, 0, 0)
             if res is None:
@@ -2338,8 +2341,11 @@ class Panel(Gtk.Box):
         return wx, wy, width or self.tree.get_width(), max(0, y2 - wy)
 
     def _hide_drop_hi(self):
-        for hi in (self.list_hi, self.tiles_hi):
-            hi.set_visible(False)
+        self.list_hi.set_visible(False)
+        cell = getattr(self, '_drop_cell', None)
+        if cell is not None:
+            cell.remove_css_class('sz-drop-folder-cell')
+            self._drop_cell = None
 
     def _end_drop_feedback(self):
         self.drop_ring.set_visible(False)
@@ -2366,18 +2372,25 @@ class Panel(Gtk.Box):
         # общая рамка панели в этом случае только мешает.
         self.drop_ring.set_visible(rect is None)
         if rect is not None:
-            hi = self.list_hi if self.view_mode == 'list' else self.tiles_hi
-            view = self.tree if self.view_mode == 'list' else self.grid
-            try:
-                res = view.translate_coordinates(hi.get_parent(), rect[0], rect[1])
-            except Exception:
-                res = None
-            if res is not None:
-                ox, oy = res[-2], res[-1]
-                hi.set_margin_start(max(0, int(ox)))
-                hi.set_margin_top(max(0, int(oy)))
-                hi.set_size_request(max(0, int(rect[2])), max(0, int(rect[3])))
-                hi.set_visible(True)
+            if self.view_mode == 'tiles':
+                # В плитках фон рисуем на самой ячейке — под иконкой и
+                # подписью, как обычное выделение, а не поверх текста.
+                cell = self._tile_cell(self._tile_at(x, y))
+                if cell is not None:
+                    cell.add_css_class('sz-drop-folder-cell')
+                    self._drop_cell = cell
+            else:
+                hi = self.list_hi
+                try:
+                    res = self.tree.translate_coordinates(hi.get_parent(), rect[0], rect[1])
+                except Exception:
+                    res = None
+                if res is not None:
+                    ox, oy = res[-2], res[-1]
+                    hi.set_margin_start(max(0, int(ox)))
+                    hi.set_margin_top(max(0, int(oy)))
+                    hi.set_size_request(max(0, int(rect[2])), max(0, int(rect[3])))
+                    hi.set_visible(True)
         name = vfs.basename(dest.rstrip('/') or dest)
         if action == Gdk.DragAction.LINK:
             text = _('Create link in "{0}"').format(name)

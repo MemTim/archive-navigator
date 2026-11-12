@@ -323,6 +323,11 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight gridview > child:selected, .sz-midnight gridview > child:selected:hover
   { background-color: alpha($accent, 0.30); color: $text; }
 .sz-midnight gridview > child label { color: $text; }
+.sz-midnight gridview > child.sz-drop-folder-cell,
+.sz-midnight gridview > child.sz-drop-folder-cell:hover,
+.sz-midnight gridview > child.sz-drop-folder-cell:selected,
+.sz-midnight gridview > child.sz-drop-folder-cell:selected:hover
+  { background-color: alpha($accent, 0.45); color: $text; border-radius: 8px; }
 .sz-midnight .sz-drop-ring
   { border: 2px solid alpha($accent, 0.65); background-color: alpha($accent, 0.05); border-radius: 8px; }
 .sz-midnight .sz-drop-folder
@@ -578,6 +583,15 @@ LIGHT_EXTRA_CSS = """
   { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 8px; }
 .sz-light .sz-drop-list, .sz-system .sz-drop-list
   { border-radius: 0; }
+.sz-light gridview > child.sz-drop-folder-cell,
+.sz-light gridview > child.sz-drop-folder-cell:hover,
+.sz-light gridview > child.sz-drop-folder-cell:selected,
+.sz-light gridview > child.sz-drop-folder-cell:selected:hover,
+.sz-system gridview > child.sz-drop-folder-cell,
+.sz-system gridview > child.sz-drop-folder-cell:hover,
+.sz-system gridview > child.sz-drop-folder-cell:selected,
+.sz-system gridview > child.sz-drop-folder-cell:selected:hover
+  { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 8px; }
 .sz-light notebook > header, .sz-system notebook > header,
 .sz-light notebook > header > tabs, .sz-system notebook > header > tabs
   { background: @theme_bg_color; border: none; box-shadow: none; }
