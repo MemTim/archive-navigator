@@ -320,14 +320,18 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight gridview, .sz-midnight gridview.view { background-color: $bg; color: $text; }
 .sz-midnight gridview > child { border-radius: 8px; }
 .sz-midnight gridview > child:hover { background-color: alpha($surface, 0.6); }
+/* Выделение плиток на 10 px меньше ячейки (по 5 px с каждой стороны),
+   чтобы фон не упирался в края и не наезжал на соседние плитки.
+   Тень цвета фона рисуется под содержимым и не влияет на раскладку. */
 .sz-midnight gridview > child:selected, .sz-midnight gridview > child:selected:hover
-  { background-color: alpha($accent, 0.30); color: $text; }
+  { background-color: alpha($accent, 0.30); color: $text; box-shadow: inset 0 0 0 5px $bg; }
 .sz-midnight gridview > child label { color: $text; }
 .sz-midnight gridview > child.sz-drop-folder-cell,
 .sz-midnight gridview > child.sz-drop-folder-cell:hover,
 .sz-midnight gridview > child.sz-drop-folder-cell:selected,
 .sz-midnight gridview > child.sz-drop-folder-cell:selected:hover
-  { background-color: alpha($accent, 0.45); color: $text; border-radius: 8px; }
+  { background-color: alpha($accent, 0.45); color: $text; border-radius: 8px;
+    box-shadow: inset 0 0 0 5px $bg; }
 .sz-midnight .sz-drop-ring
   { border: 2px solid alpha($accent, 0.65); background-color: alpha($accent, 0.05); border-radius: 8px; }
 .sz-midnight .sz-drop-folder
@@ -581,6 +585,9 @@ LIGHT_EXTRA_CSS = """
   { border: 2px solid alpha(currentColor, 0.5); background-color: alpha(currentColor, 0.04); border-radius: 8px; }
 .sz-light .sz-drop-folder, .sz-system .sz-drop-folder
   { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 8px; }
+.sz-light gridview > child:selected, .sz-light gridview > child:selected:hover,
+.sz-system gridview > child:selected, .sz-system gridview > child:selected:hover
+  { box-shadow: inset 0 0 0 5px @theme_base_color; }
 .sz-light .sz-drop-list, .sz-system .sz-drop-list
   { border-radius: 0; }
 .sz-light gridview > child.sz-drop-folder-cell,
@@ -591,7 +598,8 @@ LIGHT_EXTRA_CSS = """
 .sz-system gridview > child.sz-drop-folder-cell:hover,
 .sz-system gridview > child.sz-drop-folder-cell:selected,
 .sz-system gridview > child.sz-drop-folder-cell:selected:hover
-  { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 8px; }
+  { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 8px;
+    box-shadow: inset 0 0 0 5px @theme_base_color; }
 .sz-light notebook > header, .sz-system notebook > header,
 .sz-light notebook > header > tabs, .sz-system notebook > header > tabs
   { background: @theme_bg_color; border: none; box-shadow: none; }
