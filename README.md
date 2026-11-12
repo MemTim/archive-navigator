@@ -194,9 +194,9 @@ window.sz-midnight .sz-panel > box:nth-child(2) {
     background-color: rgba(7, 7, 34, 1.0);
 }
 
-/* выделенные строки */
-window.sz-midnight treeview.view:selected,
-window.sz-midnight gridview > child:selected {
+/* выделенные строки списка; у плиток фон состояний рисует само приложение,
+   поэтому ячейку не закрашиваем — иначе выделение снова станет во всю ячейку */
+window.sz-midnight treeview.view:selected {
     background-color: rgba(14, 14, 67, 1.0);
     color: #F3EDF7;
 }

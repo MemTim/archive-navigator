@@ -246,6 +246,8 @@ gridview:focus, gridview:focus-visible,
 gridview > child:focus, gridview > child:focus-visible, gridview > child:focus-within,
 treeview.view:focus, treeview.view:focus-visible
   { outline: none; box-shadow: none; border-color: transparent; }
+/* Фон наведения/выделения плитки: отдельный слой под содержимым. */
+.sz-tile-hi { border-radius: 8px; }
 notebook { border: none; box-shadow: none; }
 window:drop(active), window :drop(active) { outline: none; box-shadow: none; border-color: transparent; }
 /* ── окно прогресса ── */
@@ -319,21 +321,22 @@ window.sz-midnight { background-color: $bg; color: $text; }
 .sz-midnight scrollbar.overlay-indicator.hovering slider { background-color: $muted; }
 .sz-midnight gridview, .sz-midnight gridview.view { background-color: $bg; color: $text; }
 .sz-midnight gridview > child { border-radius: 8px; }
-/* Наведение, выделение и подсветка сброса на 10 px меньше ячейки.
-   Радиус 13 px минус 5 px внутренней тени даёт прежние 8 px скругления. */
-.sz-midnight gridview > child:hover
-  { background-color: alpha($surface, 0.6); border-radius: 13px;
-    box-shadow: inset 0 0 0 5px $bg; }
-.sz-midnight gridview > child:selected, .sz-midnight gridview > child:selected:hover
-  { background-color: alpha($accent, 0.30); color: $text; border-radius: 13px;
-    box-shadow: inset 0 0 0 5px $bg; }
+/* Фон состояний рисует слой .sz-tile-hi под содержимым: его можно
+   уменьшить и скруглить, не закрашивая края цветом фона. */
+.sz-midnight gridview > child:hover,
+.sz-midnight gridview > child:selected,
+.sz-midnight gridview > child:selected:hover
+  { background-color: transparent; background-image: none; box-shadow: none; }
+.sz-midnight gridview > child .sz-tile-hi
+  { background-color: transparent; }
+.sz-midnight gridview > child:hover .sz-tile-hi
+  { background-color: alpha($surface, 0.6); }
+.sz-midnight gridview > child:selected .sz-tile-hi,
+.sz-midnight gridview > child:selected:hover .sz-tile-hi
+  { background-color: alpha($accent, 0.30); }
 .sz-midnight gridview > child label { color: $text; }
-.sz-midnight gridview > child.sz-drop-folder-cell,
-.sz-midnight gridview > child.sz-drop-folder-cell:hover,
-.sz-midnight gridview > child.sz-drop-folder-cell:selected,
-.sz-midnight gridview > child.sz-drop-folder-cell:selected:hover
-  { background-color: alpha($accent, 0.45); color: $text; border-radius: 13px;
-    box-shadow: inset 0 0 0 5px $bg; }
+.sz-midnight gridview > child.sz-drop-folder-cell .sz-tile-hi
+  { background-color: alpha($accent, 0.45); }
 .sz-midnight .sz-drop-ring
   { border: 2px solid alpha($accent, 0.65); background-color: alpha($accent, 0.05); border-radius: 8px; }
 .sz-midnight .sz-drop-folder
@@ -587,26 +590,30 @@ LIGHT_EXTRA_CSS = """
   { border: 2px solid alpha(currentColor, 0.5); background-color: alpha(currentColor, 0.04); border-radius: 8px; }
 .sz-light .sz-drop-folder, .sz-system .sz-drop-folder
   { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 8px; }
-/* Наведение, выделение и подсветка сброса: те же 10 px отступа и 8 px
-   скругления (13 px радиус минус 5 px внутренней тени). */
+/* Фон наведения/выделения — слой .sz-tile-hi под содержимым. */
 .sz-light gridview > child:hover,
-.sz-system gridview > child:hover
-  { border-radius: 13px; box-shadow: inset 0 0 0 5px @theme_base_color; }
-.sz-light gridview > child:selected, .sz-light gridview > child:selected:hover,
-.sz-system gridview > child:selected, .sz-system gridview > child:selected:hover
-  { border-radius: 13px; box-shadow: inset 0 0 0 5px @theme_base_color; }
+.sz-light gridview > child:selected,
+.sz-light gridview > child:selected:hover,
+.sz-system gridview > child:hover,
+.sz-system gridview > child:selected,
+.sz-system gridview > child:selected:hover
+  { background-color: transparent; background-image: none; box-shadow: none; }
+.sz-light gridview > child .sz-tile-hi,
+.sz-system gridview > child .sz-tile-hi
+  { background-color: transparent; }
+.sz-light gridview > child:hover .sz-tile-hi,
+.sz-system gridview > child:hover .sz-tile-hi
+  { background-color: alpha(currentColor, 0.10); }
+.sz-light gridview > child:selected .sz-tile-hi,
+.sz-light gridview > child:selected:hover .sz-tile-hi,
+.sz-system gridview > child:selected .sz-tile-hi,
+.sz-system gridview > child:selected:hover .sz-tile-hi
+  { background-color: alpha(@theme_selected_bg_color, 0.35); }
 .sz-light .sz-drop-list, .sz-system .sz-drop-list
   { border-radius: 0; }
-.sz-light gridview > child.sz-drop-folder-cell,
-.sz-light gridview > child.sz-drop-folder-cell:hover,
-.sz-light gridview > child.sz-drop-folder-cell:selected,
-.sz-light gridview > child.sz-drop-folder-cell:selected:hover,
-.sz-system gridview > child.sz-drop-folder-cell,
-.sz-system gridview > child.sz-drop-folder-cell:hover,
-.sz-system gridview > child.sz-drop-folder-cell:selected,
-.sz-system gridview > child.sz-drop-folder-cell:selected:hover
-  { background-color: alpha(@theme_selected_bg_color, 0.35); border-radius: 13px;
-    box-shadow: inset 0 0 0 5px @theme_base_color; }
+.sz-light gridview > child.sz-drop-folder-cell .sz-tile-hi,
+.sz-system gridview > child.sz-drop-folder-cell .sz-tile-hi
+  { background-color: alpha(@theme_selected_bg_color, 0.50); }
 .sz-light notebook > header, .sz-system notebook > header,
 .sz-light notebook > header > tabs, .sz-system notebook > header > tabs
   { background: @theme_bg_color; border: none; box-shadow: none; }

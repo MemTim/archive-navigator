@@ -580,7 +580,43 @@ class Panel(Gtk.Box):
         parts.box, parts.ov, parts.img, parts.pic = box, ov, img, pic
         parts.badges, parts.label, parts.label_ov, parts.item, parts.size = badges, label, label_ov, None, size
         box._parts = parts
-        li.set_child(box)
+        # Фон наведения/выделения — отдельный слой под содержимым. Так он
+        # может быть меньше ячейки и скруглённым без обводки цветом фона,
+        # которая была бы видна на полупрозрачном фоне.
+        hi = Gtk.Box()
+        hi.add_css_class('sz-tile-hi')
+        hi.set_can_target(False)
+        for edge in ('start', 'end', 'top', 'bottom'):
+            getattr(hi, 'set_margin_' + edge)(5)
+        outer = Gtk.Overlay()
+        outer.set_child(hi)
+        outer.add_overlay(box)
+        outer.set_measure_overlay(box, True)
+        outer._parts = parts
+        outer.connect('notify::width', self._tile_hi_fit, hi)
+        outer.connect('notify::height', self._tile_hi_fit, hi)
+        outer.connect('map', self._tile_hi_map, hi)
+        li.set_child(outer)
+
+    def _tile_hi_map(self, outer, hi):
+        self._tile_hi_fit(outer, None, hi)
+        # На map размеры ячейки могут быть ещё не final — повторим в idle.
+        GLib.idle_add(self._tile_hi_fit, outer, None, hi)
+
+    def _tile_hi_fit(self, outer, pspec, hi):
+        """Подогнать фон плитки: 5 px от края ячейки, а не от её отступов."""
+        cell = outer.get_parent()
+        if cell is None or cell is self.grid:
+            return
+        ca, oa = cell.get_allocation(), outer.get_allocation()
+        if ca.width <= 0 or ca.height <= 0 or oa.width <= 0 or oa.height <= 0:
+            return
+        padx = max(0, (ca.width - oa.width) // 2)
+        pady = max(0, (ca.height - oa.height) // 2)
+        hi.set_margin_start(max(0, 5 - padx))
+        hi.set_margin_end(max(0, 5 - padx))
+        hi.set_margin_top(max(0, 5 - pady))
+        hi.set_margin_bottom(max(0, 5 - pady))
 
     def _tile_bind(self, factory, li, size):
         item, parts = li.get_item(), li.get_child()._parts
