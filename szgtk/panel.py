@@ -2234,7 +2234,6 @@ class Panel(Gtk.Box):
         self._end_drop_feedback()
 
     def _on_drop_enter(self, target, x, y):
-        self.drop_ring.set_visible(True)
         self._drop_hint_text = None
         return self._show_drop_feedback(target, x, y)
 
@@ -2357,11 +2356,15 @@ class Panel(Gtk.Box):
         """Подсветить папку-получателя и подсказать действие в статусе."""
         if self.mode != 'fs':
             self._hide_drop_hi()
+            self.drop_ring.set_visible(True)
             return Gdk.DragAction.COPY
         dest = self._drop_folder(x, y) or self.path
         action = self._drop_action(target, dest)
         self._hide_drop_hi()
         rect = self._drop_rect(x, y)
+        # При сбросе в конкретную папку достаточно подсветки самой папки:
+        # общая рамка панели в этом случае только мешает.
+        self.drop_ring.set_visible(rect is None)
         if rect is not None:
             hi = self.list_hi if self.view_mode == 'list' else self.tiles_hi
             view = self.tree if self.view_mode == 'list' else self.grid
