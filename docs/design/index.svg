@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1264" height="6964" viewBox="0 0 1264 6964">
+<defs><style>text{font-family:"Adwaita Sans","Noto Sans",sans-serif}.h{font-size:30px;font-weight:700;fill:#f0edfa}.s{font-size:15px;fill:#9a93b5}.c{font-size:17px;font-weight:600;fill:#d8d2ee}.n{font-size:12px;fill:#7f7899}.b{fill:#1c1830;stroke:#3a3358;stroke-width:1}</style></defs>
+<rect width="1264" height="6964" fill="#121020"/>
+<text class="h" x="40" y="58">sevenzip-gtk — экспорт интерфейса</text>
+<text class="s" x="40" y="88">Векторные макеты окон, страниц настроек и меню. Правка SVG не меняет приложение.</text>
+<a xlink:href="main/main-tiles.svg">
+<rect class="b" x="40" y="120" width="380" height="300" rx="12"/>
+<image x="46.0" y="152.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="main/main-tiles.svg"/>
+<rect x="40" y="420" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="446">Главное окно — плитки</text>
+<text class="n" x="44" y="466">Главное окно · main/main-tiles.svg · 1100×700</text>
+</a>
+<a xlink:href="main/main-details.svg">
+<rect class="b" x="442" y="120" width="380" height="300" rx="12"/>
+<image x="448.0" y="152.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="main/main-details.svg"/>
+<rect x="442" y="420" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="446">Главное окно — подробный список</text>
+<text class="n" x="446" y="466">Главное окно · main/main-details.svg · 1100×700</text>
+</a>
+<a xlink:href="main/main-search.svg">
+<rect class="b" x="844" y="120" width="380" height="300" rx="12"/>
+<image x="850.0" y="152.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="main/main-search.svg"/>
+<rect x="844" y="420" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="446">Главное окно — поиск</text>
+<text class="n" x="848" y="466">Главное окно · main/main-search.svg · 1100×700</text>
+</a>
+<a xlink:href="main/main-two-panels.svg">
+<rect class="b" x="40" y="498" width="380" height="300" rx="12"/>
+<image x="46.0" y="530.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="main/main-two-panels.svg"/>
+<rect x="40" y="798" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="824">Главное окно — две панели</text>
+<text class="n" x="44" y="844">Главное окно · main/main-two-panels.svg · 1100×700</text>
+</a>
+<a xlink:href="main/main-tiles-light.svg">
+<rect class="b" x="442" y="498" width="380" height="300" rx="12"/>
+<image x="448.0" y="530.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="main/main-tiles-light.svg"/>
+<rect x="442" y="798" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="824">Главное окно — светлая схема</text>
+<text class="n" x="446" y="844">Главное окно · main/main-tiles-light.svg · 1100×700</text>
+</a>
+<a xlink:href="main/main-dual.svg">
+<rect class="b" x="844" y="498" width="380" height="300" rx="12"/>
+<image x="850.0" y="530.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="main/main-dual.svg"/>
+<rect x="844" y="798" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="824">Главное окно — двухпанельный дизайн</text>
+<text class="n" x="848" y="844">Главное окно · main/main-dual.svg · 1100×700</text>
+</a>
+<a xlink:href="main/main-nav.svg">
+<rect class="b" x="40" y="876" width="380" height="300" rx="12"/>
+<image x="46.0" y="908.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="main/main-nav.svg"/>
+<rect x="40" y="1176" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="1202">Главное окно — навигация с боковой панелью</text>
+<text class="n" x="44" y="1222">Главное окно · main/main-nav.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-file.svg">
+<rect class="b" x="442" y="876" width="380" height="300" rx="12"/>
+<image x="448.0" y="908.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-file.svg"/>
+<rect x="442" y="1176" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="1202">Меню «Файл»</text>
+<text class="n" x="446" y="1222">Меню · menus/menubar-file.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-file-checksum.svg">
+<rect class="b" x="844" y="876" width="380" height="300" rx="12"/>
+<image x="850.0" y="908.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-file-checksum.svg"/>
+<rect x="844" y="1176" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="1202">Меню «Файл» → «Контрольная сумма»</text>
+<text class="n" x="848" y="1222">Меню · menus/menubar-file-checksum.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-edit.svg">
+<rect class="b" x="40" y="1254" width="380" height="300" rx="12"/>
+<image x="46.0" y="1286.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-edit.svg"/>
+<rect x="40" y="1554" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="1580">Меню «Правка»</text>
+<text class="n" x="44" y="1600">Меню · menus/menubar-edit.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-view.svg">
+<rect class="b" x="442" y="1254" width="380" height="300" rx="12"/>
+<image x="448.0" y="1286.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-view.svg"/>
+<rect x="442" y="1554" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="1580">Меню «Просмотр»</text>
+<text class="n" x="446" y="1600">Меню · menus/menubar-view.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-view-columns.svg">
+<rect class="b" x="844" y="1254" width="380" height="300" rx="12"/>
+<image x="850.0" y="1286.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-view-columns.svg"/>
+<rect x="844" y="1554" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="1580">Меню «Просмотр» → «Колонки»</text>
+<text class="n" x="848" y="1600">Меню · menus/menubar-view-columns.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-view-sort.svg">
+<rect class="b" x="40" y="1632" width="380" height="300" rx="12"/>
+<image x="46.0" y="1664.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-view-sort.svg"/>
+<rect x="40" y="1932" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="1958">Меню «Просмотр» → «Сортировка»</text>
+<text class="n" x="44" y="1978">Меню · menus/menubar-view-sort.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-favorites.svg">
+<rect class="b" x="442" y="1632" width="380" height="300" rx="12"/>
+<image x="448.0" y="1664.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-favorites.svg"/>
+<rect x="442" y="1932" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="1958">Меню «Избранное»</text>
+<text class="n" x="446" y="1978">Меню · menus/menubar-favorites.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-favorites-add-as.svg">
+<rect class="b" x="844" y="1632" width="380" height="300" rx="12"/>
+<image x="850.0" y="1664.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-favorites-add-as.svg"/>
+<rect x="844" y="1932" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="1958">Меню «Избранное» → «Добавить папку в избранное как»</text>
+<text class="n" x="848" y="1978">Меню · menus/menubar-favorites-add-as.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-favorites-remove.svg">
+<rect class="b" x="40" y="2010" width="380" height="300" rx="12"/>
+<image x="46.0" y="2042.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-favorites-remove.svg"/>
+<rect x="40" y="2310" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="2336">Меню «Избранное» → «Убрать из избранного»</text>
+<text class="n" x="44" y="2356">Меню · menus/menubar-favorites-remove.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-favorites-rename.svg">
+<rect class="b" x="442" y="2010" width="380" height="300" rx="12"/>
+<image x="448.0" y="2042.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-favorites-rename.svg"/>
+<rect x="442" y="2310" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="2336">Меню «Избранное» → «Переименовать избранное»</text>
+<text class="n" x="446" y="2356">Меню · menus/menubar-favorites-rename.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-tools.svg">
+<rect class="b" x="844" y="2010" width="380" height="300" rx="12"/>
+<image x="850.0" y="2042.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-tools.svg"/>
+<rect x="844" y="2310" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="2336">Меню «Сервис»</text>
+<text class="n" x="848" y="2356">Меню · menus/menubar-tools.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/menubar-help.svg">
+<rect class="b" x="40" y="2388" width="380" height="300" rx="12"/>
+<image x="46.0" y="2420.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/menubar-help.svg"/>
+<rect x="40" y="2688" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="2714">Меню «Справка»</text>
+<text class="n" x="44" y="2734">Меню · menus/menubar-help.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/context-selection.svg">
+<rect class="b" x="442" y="2388" width="380" height="300" rx="12"/>
+<image x="448.0" y="2420.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/context-selection.svg"/>
+<rect x="442" y="2688" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="2714">Контекстное меню — несколько файлов</text>
+<text class="n" x="446" y="2734">Меню · menus/context-selection.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/context-convert-to.svg">
+<rect class="b" x="844" y="2388" width="380" height="300" rx="12"/>
+<image x="850.0" y="2420.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/context-convert-to.svg"/>
+<rect x="844" y="2688" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="2714">Контекстное меню → «Конвертировать в»</text>
+<text class="n" x="848" y="2734">Меню · menus/context-convert-to.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/context-checksum.svg">
+<rect class="b" x="40" y="2766" width="380" height="300" rx="12"/>
+<image x="46.0" y="2798.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/context-checksum.svg"/>
+<rect x="40" y="3066" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="3092">Контекстное меню → «Контрольная сумма»</text>
+<text class="n" x="44" y="3112">Меню · menus/context-checksum.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/panel-menu.svg">
+<rect class="b" x="442" y="2766" width="380" height="300" rx="12"/>
+<image x="448.0" y="2798.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/panel-menu.svg"/>
+<rect x="442" y="3066" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="3092">Меню панели</text>
+<text class="n" x="446" y="3112">Меню · menus/panel-menu.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/columns-menu.svg">
+<rect class="b" x="844" y="2766" width="380" height="300" rx="12"/>
+<image x="850.0" y="2798.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/columns-menu.svg"/>
+<rect x="844" y="3066" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="3092">Меню колонок</text>
+<text class="n" x="848" y="3112">Меню · menus/columns-menu.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/history-menu.svg">
+<rect class="b" x="40" y="3144" width="380" height="300" rx="12"/>
+<image x="46.0" y="3176.9" width="368.0" height="234.2" preserveAspectRatio="xMidYMid meet" xlink:href="menus/history-menu.svg"/>
+<rect x="40" y="3444" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="3470">История папок</text>
+<text class="n" x="44" y="3490">Меню · menus/history-menu.svg · 1100×700</text>
+</a>
+<a xlink:href="menus/top-panels-popover.svg">
+<rect class="b" x="442" y="3144" width="380" height="300" rx="12"/>
+<image x="459.9" y="3150.0" width="344.2" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="menus/top-panels-popover.svg"/>
+<rect x="442" y="3444" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="3470">Поповер «Панели»</text>
+<text class="n" x="446" y="3490">Меню · menus/top-panels-popover.svg · 441×369</text>
+</a>
+<a xlink:href="menus/favorites-order.svg">
+<rect class="b" x="844" y="3144" width="380" height="300" rx="12"/>
+<image x="948.5" y="3205.0" width="171.0" height="178.0" preserveAspectRatio="xMidYMid meet" xlink:href="menus/favorites-order.svg"/>
+<rect x="844" y="3444" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="3470">Избранное — порядок записи</text>
+<text class="n" x="848" y="3490">Меню · menus/favorites-order.svg · 171×178</text>
+</a>
+<a xlink:href="menus/sidebar-group-menu.svg">
+<rect class="b" x="40" y="3522" width="380" height="300" rx="12"/>
+<image x="62.0" y="3540.5" width="336.0" height="263.0" preserveAspectRatio="xMidYMid meet" xlink:href="menus/sidebar-group-menu.svg"/>
+<rect x="40" y="3822" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="3848">Меню группы боковой панели</text>
+<text class="n" x="44" y="3868">Меню · menus/sidebar-group-menu.svg · 336×263</text>
+</a>
+<a xlink:href="settings/settings-1-general.svg">
+<rect class="b" x="442" y="3522" width="380" height="300" rx="12"/>
+<image x="484.8" y="3528.0" width="294.5" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="settings/settings-1-general.svg"/>
+<rect x="442" y="3822" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="3848">Настройки — Общие</text>
+<text class="n" x="446" y="3868">Настройки · settings/settings-1-general.svg · 820×802</text>
+</a>
+<a xlink:href="settings/settings-2-favorites.svg">
+<rect class="b" x="844" y="3522" width="380" height="300" rx="12"/>
+<image x="886.8" y="3528.0" width="294.5" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="settings/settings-2-favorites.svg"/>
+<rect x="844" y="3822" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="3848">Настройки — Избранное</text>
+<text class="n" x="848" y="3868">Настройки · settings/settings-2-favorites.svg · 820×802</text>
+</a>
+<a xlink:href="settings/settings-3-appearance.svg">
+<rect class="b" x="40" y="3900" width="380" height="300" rx="12"/>
+<image x="82.8" y="3906.0" width="294.5" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="settings/settings-3-appearance.svg"/>
+<rect x="40" y="4200" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="4226">Настройки — Оформление</text>
+<text class="n" x="44" y="4246">Настройки · settings/settings-3-appearance.svg · 820×802</text>
+</a>
+<a xlink:href="settings/settings-4-display.svg">
+<rect class="b" x="442" y="3900" width="380" height="300" rx="12"/>
+<image x="484.8" y="3906.0" width="294.5" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="settings/settings-4-display.svg"/>
+<rect x="442" y="4200" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="4226">Настройки — Отображение</text>
+<text class="n" x="446" y="4246">Настройки · settings/settings-4-display.svg · 820×802</text>
+</a>
+<a xlink:href="settings/settings-5-language.svg">
+<rect class="b" x="844" y="3900" width="380" height="300" rx="12"/>
+<image x="886.8" y="3906.0" width="294.5" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="settings/settings-5-language.svg"/>
+<rect x="844" y="4200" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="4226">Настройки — Язык</text>
+<text class="n" x="848" y="4246">Настройки · settings/settings-5-language.svg · 820×802</text>
+</a>
+<a xlink:href="settings/settings-6-hotkeys.svg">
+<rect class="b" x="40" y="4278" width="380" height="300" rx="12"/>
+<image x="82.8" y="4284.0" width="294.5" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="settings/settings-6-hotkeys.svg"/>
+<rect x="40" y="4578" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="4604">Настройки — Горячие клавиши</text>
+<text class="n" x="44" y="4624">Настройки · settings/settings-6-hotkeys.svg · 820×802</text>
+</a>
+<a xlink:href="dialogs/add-archive.svg">
+<rect class="b" x="442" y="4278" width="380" height="300" rx="12"/>
+<image x="480.7" y="4284.0" width="302.6" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/add-archive.svg"/>
+<rect x="442" y="4578" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="4604">Добавить в архив</text>
+<text class="n" x="446" y="4624">Диалоги · dialogs/add-archive.svg · 786×748</text>
+</a>
+<a xlink:href="dialogs/extract.svg">
+<rect class="b" x="844" y="4278" width="380" height="300" rx="12"/>
+<image x="850.0" y="4318.1" width="368.0" height="219.8" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/extract.svg"/>
+<rect x="844" y="4578" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="4604">Извлечь файлы</text>
+<text class="n" x="848" y="4624">Диалоги · dialogs/extract.svg · 606×362</text>
+</a>
+<a xlink:href="dialogs/split.svg">
+<rect class="b" x="40" y="4656" width="380" height="300" rx="12"/>
+<image x="46.0" y="4727.3" width="368.0" height="157.3" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/split.svg"/>
+<rect x="40" y="4956" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="4982">Разбить файл</text>
+<text class="n" x="44" y="5002">Диалоги · dialogs/split.svg · 566×242</text>
+</a>
+<a xlink:href="dialogs/benchmark.svg">
+<rect class="b" x="442" y="4656" width="380" height="300" rx="12"/>
+<image x="448.0" y="4681.5" width="368.0" height="248.9" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/benchmark.svg"/>
+<rect x="442" y="4956" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="4982">Тест производительности</text>
+<text class="n" x="446" y="5002">Диалоги · dialogs/benchmark.svg · 680×460</text>
+</a>
+<a xlink:href="dialogs/converter.svg">
+<rect class="b" x="844" y="4656" width="380" height="300" rx="12"/>
+<image x="850.0" y="4680.3" width="368.0" height="251.3" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/converter.svg"/>
+<rect x="844" y="4956" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="4982">Конвертер</text>
+<text class="n" x="848" y="5002">Диалоги · dialogs/converter.svg · 820×560</text>
+</a>
+<a xlink:href="dialogs/properties-file-main.svg">
+<rect class="b" x="40" y="5034" width="380" height="300" rx="12"/>
+<image x="54.7" y="5040.0" width="350.6" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/properties-file-main.svg"/>
+<rect x="40" y="5334" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="5360">Свойства файла — Основное</text>
+<text class="n" x="44" y="5380">Диалоги · dialogs/properties-file-main.svg · 560×460</text>
+</a>
+<a xlink:href="dialogs/properties-file-permissions.svg">
+<rect class="b" x="442" y="5034" width="380" height="300" rx="12"/>
+<image x="456.7" y="5040.0" width="350.6" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/properties-file-permissions.svg"/>
+<rect x="442" y="5334" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="5360">Свойства файла — Права</text>
+<text class="n" x="446" y="5380">Диалоги · dialogs/properties-file-permissions.svg · 560×460</text>
+</a>
+<a xlink:href="dialogs/properties-archive.svg">
+<rect class="b" x="844" y="5034" width="380" height="300" rx="12"/>
+<image x="858.7" y="5040.0" width="350.6" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/properties-archive.svg"/>
+<rect x="844" y="5334" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="5360">Свойства архива</text>
+<text class="n" x="848" y="5380">Диалоги · dialogs/properties-archive.svg · 560×460</text>
+</a>
+<a xlink:href="dialogs/properties-folder.svg">
+<rect class="b" x="40" y="5412" width="380" height="300" rx="12"/>
+<image x="65.0" y="5418.0" width="330.1" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/properties-folder.svg"/>
+<rect x="40" y="5712" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="5738">Свойства папки</text>
+<text class="n" x="44" y="5758">Диалоги · dialogs/properties-folder.svg · 659×575</text>
+</a>
+<a xlink:href="dialogs/progress-copy.svg">
+<rect class="b" x="442" y="5412" width="380" height="300" rx="12"/>
+<image x="448.0" y="5424.2" width="368.0" height="275.6" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/progress-copy.svg"/>
+<rect x="442" y="5712" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="5738">Прогресс — копирование</text>
+<text class="n" x="446" y="5758">Диалоги · dialogs/progress-copy.svg · 510×382</text>
+</a>
+<a xlink:href="dialogs/password.svg">
+<rect class="b" x="844" y="5412" width="380" height="300" rx="12"/>
+<image x="850.0" y="5483.0" width="368.0" height="158.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/password.svg"/>
+<rect x="844" y="5712" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="5738">Ввод пароля</text>
+<text class="n" x="848" y="5758">Диалоги · dialogs/password.svg · 368×158</text>
+</a>
+<a xlink:href="dialogs/prompt-rename.svg">
+<rect class="b" x="40" y="5790" width="380" height="300" rx="12"/>
+<image x="46.0" y="5888.7" width="368.0" height="102.6" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/prompt-rename.svg"/>
+<rect x="40" y="6090" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="6116">Переименование</text>
+<text class="n" x="44" y="6136">Диалоги · dialogs/prompt-rename.svg · 488×136</text>
+</a>
+<a xlink:href="dialogs/confirm-delete.svg">
+<rect class="b" x="442" y="5790" width="380" height="300" rx="12"/>
+<image x="483.0" y="5881.0" width="298.0" height="118.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/confirm-delete.svg"/>
+<rect x="442" y="6090" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="6116">Подтверждение удаления</text>
+<text class="n" x="446" y="6136">Диалоги · dialogs/confirm-delete.svg · 298×118</text>
+</a>
+<a xlink:href="dialogs/history.svg">
+<rect class="b" x="844" y="5790" width="380" height="300" rx="12"/>
+<image x="850.0" y="5834.9" width="368.0" height="210.3" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/history.svg"/>
+<rect x="844" y="6090" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="6116">История папок</text>
+<text class="n" x="848" y="6136">Диалоги · dialogs/history.svg · 560×320</text>
+</a>
+<a xlink:href="dialogs/open-with.svg">
+<rect class="b" x="40" y="6168" width="380" height="300" rx="12"/>
+<image x="95.0" y="6174.0" width="270.0" height="288.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/open-with.svg"/>
+<rect x="40" y="6468" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="6494">Открыть с помощью…</text>
+<text class="n" x="44" y="6514">Диалоги · dialogs/open-with.svg · 600×640</text>
+</a>
+<a xlink:href="dialogs/key-capture.svg">
+<rect class="b" x="442" y="6168" width="380" height="300" rx="12"/>
+<image x="473.0" y="6257.5" width="318.0" height="121.0" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/key-capture.svg"/>
+<rect x="442" y="6468" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="6494">Запись сочетания клавиш</text>
+<text class="n" x="446" y="6514">Диалоги · dialogs/key-capture.svg · 318×121</text>
+</a>
+<a xlink:href="dialogs/text-checksum.svg">
+<rect class="b" x="844" y="6168" width="380" height="300" rx="12"/>
+<image x="850.0" y="6219.4" width="368.0" height="197.1" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/text-checksum.svg"/>
+<rect x="844" y="6468" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="848" y="6494">Результат проверки контрольных сумм</text>
+<text class="n" x="848" y="6514">Диалоги · dialogs/text-checksum.svg · 560×300</text>
+</a>
+<a xlink:href="dialogs/about.svg">
+<rect class="b" x="40" y="6546" width="380" height="300" rx="12"/>
+<image x="46.0" y="6557.7" width="368.0" height="276.6" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/about.svg"/>
+<rect x="40" y="6846" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="44" y="6872">О программе</text>
+<text class="n" x="44" y="6892">Диалоги · dialogs/about.svg · 447×336</text>
+</a>
+<a xlink:href="dialogs/alert.svg">
+<rect class="b" x="442" y="6546" width="380" height="300" rx="12"/>
+<image x="448.0" y="6662.9" width="368.0" height="66.3" preserveAspectRatio="xMidYMid meet" xlink:href="dialogs/alert.svg"/>
+<rect x="442" y="6846" width="380" height="1" fill="#3a3358"/>
+<text class="c" x="446" y="6872">Системное предупреждение</text>
+<text class="n" x="446" y="6892">Диалоги · dialogs/alert.svg · 561×101</text>
+</a>
+</svg>

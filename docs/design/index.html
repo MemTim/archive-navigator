@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru"><meta charset="utf-8">
+<title>sevenzip-gtk — макеты интерфейса</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;padding:34px 40px 60px;background:#121020;color:#f0edfa;
+  font:15px/1.45 "Adwaita Sans","Noto Sans",sans-serif}
+h1{margin:0 0 4px;font-size:30px}
+.lead{color:#9a93b5;margin:0 0 30px;max-width:900px}
+.danger{color:#e8c56a}
+h2{margin:34px 0 14px;font-size:18px;color:#d8d2ee}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:22px}
+.card{display:block;background:#1c1830;border:1px solid #3a3358;border-radius:12px;
+  padding:14px;text-decoration:none;color:inherit}
+.card:hover{border-color:#8b7dd8;background:#241f3d}
+.card img{display:block;width:100%;height:230px;object-fit:contain;background:#0e0c1a;
+  border-radius:7px}
+.t{margin-top:10px;font-weight:600;font-size:16px}
+.n{margin-top:2px;color:#7f7899;font-size:12px;word-break:break-all}
+</style>
+<h1>sevenzip-gtk — экспорт интерфейса</h1>
+<p class="lead">Векторные макеты окон, страниц настроек и меню.
+<span class="danger">Правка SVG не меняет приложение</span> — это снимки текущего
+оформления для обсуждения и перерисовки. Перегенерация:
+<code>tools/export-design.sh</code>.</p>
+<h2>Главное окно</h2><div class="grid">
+<a class="card" href="main/main-tiles.svg"><img loading="lazy" src="main/main-tiles.svg" alt="Главное окно — плитки"><div class="t">Главное окно — плитки</div><div class="n">main/main-tiles.svg · 1100×700</div></a>
+<a class="card" href="main/main-details.svg"><img loading="lazy" src="main/main-details.svg" alt="Главное окно — подробный список"><div class="t">Главное окно — подробный список</div><div class="n">main/main-details.svg · 1100×700</div></a>
+<a class="card" href="main/main-search.svg"><img loading="lazy" src="main/main-search.svg" alt="Главное окно — поиск"><div class="t">Главное окно — поиск</div><div class="n">main/main-search.svg · 1100×700</div></a>
+<a class="card" href="main/main-two-panels.svg"><img loading="lazy" src="main/main-two-panels.svg" alt="Главное окно — две панели"><div class="t">Главное окно — две панели</div><div class="n">main/main-two-panels.svg · 1100×700</div></a>
+<a class="card" href="main/main-tiles-light.svg"><img loading="lazy" src="main/main-tiles-light.svg" alt="Главное окно — светлая схема"><div class="t">Главное окно — светлая схема</div><div class="n">main/main-tiles-light.svg · 1100×700</div></a>
+<a class="card" href="main/main-dual.svg"><img loading="lazy" src="main/main-dual.svg" alt="Главное окно — двухпанельный дизайн"><div class="t">Главное окно — двухпанельный дизайн</div><div class="n">main/main-dual.svg · 1100×700</div></a>
+<a class="card" href="main/main-nav.svg"><img loading="lazy" src="main/main-nav.svg" alt="Главное окно — навигация с боковой панелью"><div class="t">Главное окно — навигация с боковой панелью</div><div class="n">main/main-nav.svg · 1100×700</div></a>
+</div>
+<h2>Меню</h2><div class="grid">
+<a class="card" href="menus/menubar-file.svg"><img loading="lazy" src="menus/menubar-file.svg" alt="Меню «Файл»"><div class="t">Меню «Файл»</div><div class="n">menus/menubar-file.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-file-checksum.svg"><img loading="lazy" src="menus/menubar-file-checksum.svg" alt="Меню «Файл» → «Контрольная сумма»"><div class="t">Меню «Файл» → «Контрольная сумма»</div><div class="n">menus/menubar-file-checksum.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-edit.svg"><img loading="lazy" src="menus/menubar-edit.svg" alt="Меню «Правка»"><div class="t">Меню «Правка»</div><div class="n">menus/menubar-edit.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-view.svg"><img loading="lazy" src="menus/menubar-view.svg" alt="Меню «Просмотр»"><div class="t">Меню «Просмотр»</div><div class="n">menus/menubar-view.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-view-columns.svg"><img loading="lazy" src="menus/menubar-view-columns.svg" alt="Меню «Просмотр» → «Колонки»"><div class="t">Меню «Просмотр» → «Колонки»</div><div class="n">menus/menubar-view-columns.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-view-sort.svg"><img loading="lazy" src="menus/menubar-view-sort.svg" alt="Меню «Просмотр» → «Сортировка»"><div class="t">Меню «Просмотр» → «Сортировка»</div><div class="n">menus/menubar-view-sort.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-favorites.svg"><img loading="lazy" src="menus/menubar-favorites.svg" alt="Меню «Избранное»"><div class="t">Меню «Избранное»</div><div class="n">menus/menubar-favorites.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-favorites-add-as.svg"><img loading="lazy" src="menus/menubar-favorites-add-as.svg" alt="Меню «Избранное» → «Добавить папку в избранное как»"><div class="t">Меню «Избранное» → «Добавить папку в избранное как»</div><div class="n">menus/menubar-favorites-add-as.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-favorites-remove.svg"><img loading="lazy" src="menus/menubar-favorites-remove.svg" alt="Меню «Избранное» → «Убрать из избранного»"><div class="t">Меню «Избранное» → «Убрать из избранного»</div><div class="n">menus/menubar-favorites-remove.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-favorites-rename.svg"><img loading="lazy" src="menus/menubar-favorites-rename.svg" alt="Меню «Избранное» → «Переименовать избранное»"><div class="t">Меню «Избранное» → «Переименовать избранное»</div><div class="n">menus/menubar-favorites-rename.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-tools.svg"><img loading="lazy" src="menus/menubar-tools.svg" alt="Меню «Сервис»"><div class="t">Меню «Сервис»</div><div class="n">menus/menubar-tools.svg · 1100×700</div></a>
+<a class="card" href="menus/menubar-help.svg"><img loading="lazy" src="menus/menubar-help.svg" alt="Меню «Справка»"><div class="t">Меню «Справка»</div><div class="n">menus/menubar-help.svg · 1100×700</div></a>
+<a class="card" href="menus/context-selection.svg"><img loading="lazy" src="menus/context-selection.svg" alt="Контекстное меню — несколько файлов"><div class="t">Контекстное меню — несколько файлов</div><div class="n">menus/context-selection.svg · 1100×700</div></a>
+<a class="card" href="menus/context-convert-to.svg"><img loading="lazy" src="menus/context-convert-to.svg" alt="Контекстное меню → «Конвертировать в»"><div class="t">Контекстное меню → «Конвертировать в»</div><div class="n">menus/context-convert-to.svg · 1100×700</div></a>
+<a class="card" href="menus/context-checksum.svg"><img loading="lazy" src="menus/context-checksum.svg" alt="Контекстное меню → «Контрольная сумма»"><div class="t">Контекстное меню → «Контрольная сумма»</div><div class="n">menus/context-checksum.svg · 1100×700</div></a>
+<a class="card" href="menus/panel-menu.svg"><img loading="lazy" src="menus/panel-menu.svg" alt="Меню панели"><div class="t">Меню панели</div><div class="n">menus/panel-menu.svg · 1100×700</div></a>
+<a class="card" href="menus/columns-menu.svg"><img loading="lazy" src="menus/columns-menu.svg" alt="Меню колонок"><div class="t">Меню колонок</div><div class="n">menus/columns-menu.svg · 1100×700</div></a>
+<a class="card" href="menus/history-menu.svg"><img loading="lazy" src="menus/history-menu.svg" alt="История папок"><div class="t">История папок</div><div class="n">menus/history-menu.svg · 1100×700</div></a>
+<a class="card" href="menus/top-panels-popover.svg"><img loading="lazy" src="menus/top-panels-popover.svg" alt="Поповер «Панели»"><div class="t">Поповер «Панели»</div><div class="n">menus/top-panels-popover.svg · 441×369</div></a>
+<a class="card" href="menus/favorites-order.svg"><img loading="lazy" src="menus/favorites-order.svg" alt="Избранное — порядок записи"><div class="t">Избранное — порядок записи</div><div class="n">menus/favorites-order.svg · 171×178</div></a>
+<a class="card" href="menus/sidebar-group-menu.svg"><img loading="lazy" src="menus/sidebar-group-menu.svg" alt="Меню группы боковой панели"><div class="t">Меню группы боковой панели</div><div class="n">menus/sidebar-group-menu.svg · 336×263</div></a>
+</div>
+<h2>Настройки</h2><div class="grid">
+<a class="card" href="settings/settings-1-general.svg"><img loading="lazy" src="settings/settings-1-general.svg" alt="Настройки — Общие"><div class="t">Настройки — Общие</div><div class="n">settings/settings-1-general.svg · 820×802</div></a>
+<a class="card" href="settings/settings-2-favorites.svg"><img loading="lazy" src="settings/settings-2-favorites.svg" alt="Настройки — Избранное"><div class="t">Настройки — Избранное</div><div class="n">settings/settings-2-favorites.svg · 820×802</div></a>
+<a class="card" href="settings/settings-3-appearance.svg"><img loading="lazy" src="settings/settings-3-appearance.svg" alt="Настройки — Оформление"><div class="t">Настройки — Оформление</div><div class="n">settings/settings-3-appearance.svg · 820×802</div></a>
+<a class="card" href="settings/settings-4-display.svg"><img loading="lazy" src="settings/settings-4-display.svg" alt="Настройки — Отображение"><div class="t">Настройки — Отображение</div><div class="n">settings/settings-4-display.svg · 820×802</div></a>
+<a class="card" href="settings/settings-5-language.svg"><img loading="lazy" src="settings/settings-5-language.svg" alt="Настройки — Язык"><div class="t">Настройки — Язык</div><div class="n">settings/settings-5-language.svg · 820×802</div></a>
+<a class="card" href="settings/settings-6-hotkeys.svg"><img loading="lazy" src="settings/settings-6-hotkeys.svg" alt="Настройки — Горячие клавиши"><div class="t">Настройки — Горячие клавиши</div><div class="n">settings/settings-6-hotkeys.svg · 820×802</div></a>
+</div>
+<h2>Диалоги</h2><div class="grid">
+<a class="card" href="dialogs/add-archive.svg"><img loading="lazy" src="dialogs/add-archive.svg" alt="Добавить в архив"><div class="t">Добавить в архив</div><div class="n">dialogs/add-archive.svg · 786×748</div></a>
+<a class="card" href="dialogs/extract.svg"><img loading="lazy" src="dialogs/extract.svg" alt="Извлечь файлы"><div class="t">Извлечь файлы</div><div class="n">dialogs/extract.svg · 606×362</div></a>
+<a class="card" href="dialogs/split.svg"><img loading="lazy" src="dialogs/split.svg" alt="Разбить файл"><div class="t">Разбить файл</div><div class="n">dialogs/split.svg · 566×242</div></a>
+<a class="card" href="dialogs/benchmark.svg"><img loading="lazy" src="dialogs/benchmark.svg" alt="Тест производительности"><div class="t">Тест производительности</div><div class="n">dialogs/benchmark.svg · 680×460</div></a>
+<a class="card" href="dialogs/converter.svg"><img loading="lazy" src="dialogs/converter.svg" alt="Конвертер"><div class="t">Конвертер</div><div class="n">dialogs/converter.svg · 820×560</div></a>
+<a class="card" href="dialogs/properties-file-main.svg"><img loading="lazy" src="dialogs/properties-file-main.svg" alt="Свойства файла — Основное"><div class="t">Свойства файла — Основное</div><div class="n">dialogs/properties-file-main.svg · 560×460</div></a>
+<a class="card" href="dialogs/properties-file-permissions.svg"><img loading="lazy" src="dialogs/properties-file-permissions.svg" alt="Свойства файла — Права"><div class="t">Свойства файла — Права</div><div class="n">dialogs/properties-file-permissions.svg · 560×460</div></a>
+<a class="card" href="dialogs/properties-archive.svg"><img loading="lazy" src="dialogs/properties-archive.svg" alt="Свойства архива"><div class="t">Свойства архива</div><div class="n">dialogs/properties-archive.svg · 560×460</div></a>
+<a class="card" href="dialogs/properties-folder.svg"><img loading="lazy" src="dialogs/properties-folder.svg" alt="Свойства папки"><div class="t">Свойства папки</div><div class="n">dialogs/properties-folder.svg · 659×575</div></a>
+<a class="card" href="dialogs/progress-copy.svg"><img loading="lazy" src="dialogs/progress-copy.svg" alt="Прогресс — копирование"><div class="t">Прогресс — копирование</div><div class="n">dialogs/progress-copy.svg · 510×382</div></a>
+<a class="card" href="dialogs/password.svg"><img loading="lazy" src="dialogs/password.svg" alt="Ввод пароля"><div class="t">Ввод пароля</div><div class="n">dialogs/password.svg · 368×158</div></a>
+<a class="card" href="dialogs/prompt-rename.svg"><img loading="lazy" src="dialogs/prompt-rename.svg" alt="Переименование"><div class="t">Переименование</div><div class="n">dialogs/prompt-rename.svg · 488×136</div></a>
+<a class="card" href="dialogs/confirm-delete.svg"><img loading="lazy" src="dialogs/confirm-delete.svg" alt="Подтверждение удаления"><div class="t">Подтверждение удаления</div><div class="n">dialogs/confirm-delete.svg · 298×118</div></a>
+<a class="card" href="dialogs/history.svg"><img loading="lazy" src="dialogs/history.svg" alt="История папок"><div class="t">История папок</div><div class="n">dialogs/history.svg · 560×320</div></a>
+<a class="card" href="dialogs/open-with.svg"><img loading="lazy" src="dialogs/open-with.svg" alt="Открыть с помощью…"><div class="t">Открыть с помощью…</div><div class="n">dialogs/open-with.svg · 600×640</div></a>
+<a class="card" href="dialogs/key-capture.svg"><img loading="lazy" src="dialogs/key-capture.svg" alt="Запись сочетания клавиш"><div class="t">Запись сочетания клавиш</div><div class="n">dialogs/key-capture.svg · 318×121</div></a>
+<a class="card" href="dialogs/text-checksum.svg"><img loading="lazy" src="dialogs/text-checksum.svg" alt="Результат проверки контрольных сумм"><div class="t">Результат проверки контрольных сумм</div><div class="n">dialogs/text-checksum.svg · 560×300</div></a>
+<a class="card" href="dialogs/about.svg"><img loading="lazy" src="dialogs/about.svg" alt="О программе"><div class="t">О программе</div><div class="n">dialogs/about.svg · 447×336</div></a>
+<a class="card" href="dialogs/alert.svg"><img loading="lazy" src="dialogs/alert.svg" alt="Системное предупреждение"><div class="t">Системное предупреждение</div><div class="n">dialogs/alert.svg · 561×101</div></a>
+</div>
+</html>
